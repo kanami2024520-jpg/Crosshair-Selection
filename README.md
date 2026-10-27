@@ -9,7 +9,7 @@ Download: [Releases](https://github.com/kanami2024520-jpg/Crosshair-Selection/re
 
 ## Features
 
-- Selection box: RGBA colors, thickness, blinking fill, rainbow, linked blocks, hidden-block mode
+- Selection box: RGBA colors, thickness, outline margin, blinking fill, rainbow, linked blocks, hidden-block mode
 - Crosshair: cross, circle, square, vanilla, arrow and triangle shapes; RGBA colors, size, gap,
   thickness, rotation, outline, center dot and rainbow
 - Live preview in the config screen

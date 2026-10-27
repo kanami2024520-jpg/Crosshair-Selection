@@ -22,6 +22,10 @@ public class SelectionBoxConfig {
     @Config.RangeFloat(min = 0.1F, max = 7.0F)
     public static float thickness = 1.0F;
 
+    @Config.Comment("Extra outline margin in blocks (0.0 - 0.02). 0 hugs the shape exactly.")
+    @Config.RangeFloat(min = 0.0F, max = 0.02F)
+    public static float outlineMargin = 0.0F;
+
     @Config.Comment("Alpha of the blinking fill (0 - 255). 0 disables the fill.")
     @Config.RangeInt(min = 0, max = 255)
     public static int blinkAlpha = 99;
@@ -49,6 +53,7 @@ public class SelectionBoxConfig {
         enabled = true;
         colour = 0xFF236EFF;
         thickness = 1.0F;
+        outlineMargin = 0.0F;
         blinkAlpha = 99;
         blinkSpeed = 0.2F;
         rainbow = false;

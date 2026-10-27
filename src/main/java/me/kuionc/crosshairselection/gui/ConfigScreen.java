@@ -38,6 +38,7 @@ public class ConfigScreen extends GuiScreen implements SliderHost {
     private static final int SELECTION_HIDDEN = 8;
     private static final int SELECTION_FILL = 9;
     private static final int SELECTION_BLINK = 18;
+    private static final int SELECTION_MARGIN = 19;
 
 
     private static final int CROSSHAIR_ENABLED = 20;
@@ -116,6 +117,8 @@ public class ConfigScreen extends GuiScreen implements SliderHost {
         buttonList.add(toggle(SELECTION_HIDDEN, right, y + 20, "crosshairselection.show_hidden", SelectionBoxConfig.showHidden));
         buttonList.add(toggle(SELECTION_FILL, right, y + 40, "crosshairselection.fill", SelectionBoxConfig.showFill));
         buttonList.add(toggle(SELECTION_BLINK, right, y + 60, "crosshairselection.blink", SelectionBoxConfig.blink));
+        buttonList.add(new OptionSlider(SELECTION_MARGIN, right, y + 126, 150, 18, 0.0F, 0.02F,
+                SelectionBoxConfig.outlineMargin, false, 3, "crosshairselection.outline_margin", this));
     }
 
     private void initCrosshairButtons() {
@@ -342,6 +345,9 @@ public class ConfigScreen extends GuiScreen implements SliderHost {
             case SELECTION_BLINK_SPEED:
                 SelectionBoxConfig.blinkSpeed = value;
                 break;
+            case SELECTION_MARGIN:
+                SelectionBoxConfig.outlineMargin = Math.round(value * 1000.0F) / 1000.0F;
+                break;
             case CROSSHAIR_WIDTH:
                 CrosshairConfig.width = value;
                 break;
@@ -517,6 +523,7 @@ public class ConfigScreen extends GuiScreen implements SliderHost {
         private final boolean selectionEnabled;
         private final int selectionColour;
         private final float selectionThickness;
+        private final float selectionOutlineMargin;
         private final int selectionBlinkAlpha;
         private final float selectionBlinkSpeed;
         private final boolean selectionRainbow;
@@ -549,6 +556,7 @@ public class ConfigScreen extends GuiScreen implements SliderHost {
             selectionEnabled = SelectionBoxConfig.enabled;
             selectionColour = SelectionBoxConfig.colour;
             selectionThickness = SelectionBoxConfig.thickness;
+            selectionOutlineMargin = SelectionBoxConfig.outlineMargin;
             selectionBlinkAlpha = SelectionBoxConfig.blinkAlpha;
             selectionBlinkSpeed = SelectionBoxConfig.blinkSpeed;
             selectionRainbow = SelectionBoxConfig.rainbow;
@@ -582,6 +590,7 @@ public class ConfigScreen extends GuiScreen implements SliderHost {
             SelectionBoxConfig.enabled = selectionEnabled;
             SelectionBoxConfig.colour = selectionColour;
             SelectionBoxConfig.thickness = selectionThickness;
+            SelectionBoxConfig.outlineMargin = selectionOutlineMargin;
             SelectionBoxConfig.blinkAlpha = selectionBlinkAlpha;
             SelectionBoxConfig.blinkSpeed = selectionBlinkSpeed;
             SelectionBoxConfig.rainbow = selectionRainbow;

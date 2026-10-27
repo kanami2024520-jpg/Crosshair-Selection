@@ -15,6 +15,7 @@ public class OptionSlider extends GuiButton {
     private final float min;
     private final float max;
     private final boolean integer;
+    private final int decimals;
     private final String labelKey;
     private final SliderHost host;
     private float value;
@@ -22,11 +23,17 @@ public class OptionSlider extends GuiButton {
 
     public OptionSlider(int id, int x, int y, int width, int height, float min, float max,
                         float value, boolean integer, String labelKey, SliderHost host) {
+        this(id, x, y, width, height, min, max, value, integer, integer ? 0 : 1, labelKey, host);
+    }
+
+    public OptionSlider(int id, int x, int y, int width, int height, float min, float max,
+                        float value, boolean integer, int decimals, String labelKey, SliderHost host) {
         super(id, x, y, width, height, "");
         this.optionId = id;
         this.min = min;
         this.max = max;
         this.integer = integer;
+        this.decimals = Math.max(0, decimals);
         this.labelKey = labelKey;
         this.host = host;
         this.value = clamp(value);
@@ -53,7 +60,7 @@ public class OptionSlider extends GuiButton {
     private void refreshLabel() {
         String formatted = integer
                 ? String.valueOf(Math.round(value))
-                : String.format(Locale.ROOT, "%.1f", value);
+                : String.format(Locale.ROOT, "%." + decimals + "f", value);
         this.displayString = StatCollector.translateToLocalFormatted(labelKey, formatted);
     }
 

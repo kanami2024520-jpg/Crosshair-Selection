@@ -6,6 +6,7 @@ crosshairselection.defaults=Defaults
 
 crosshairselection.enabled=Enabled: %s
 crosshairselection.thickness=Thickness: %s
+crosshairselection.outline_margin=Outline Margin: %s
 crosshairselection.blink_alpha=Blink Alpha: %s
 crosshairselection.blink_speed=Blink Speed: %s
 crosshairselection.rainbow=Rainbow: %s

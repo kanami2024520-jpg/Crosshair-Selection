@@ -6,6 +6,7 @@ crosshairselection.defaults=默认值
 
 crosshairselection.enabled=启用：%s
 crosshairselection.thickness=粗细：%s
+crosshairselection.outline_margin=外框边距：%s
 crosshairselection.blink_alpha=闪烁不透明度：%s
 crosshairselection.blink_speed=闪烁速度：%s
 crosshairselection.rainbow=彩虹色：%s

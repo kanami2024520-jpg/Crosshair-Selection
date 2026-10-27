@@ -19,8 +19,6 @@ import java.util.List;
  */
 public final class SelectionBoxRenderer {
 
-    private static final double EXPAND = 0.002D;
-
     private SelectionBoxRenderer() {
     }
 
@@ -99,13 +97,16 @@ public final class SelectionBoxRenderer {
 
     private static void drawShape(OutlineShape shape, double cameraX, double cameraY, double cameraZ,
                                   int outlineColour, int innerColour, float thickness) {
+        double margin = Math.max(0.0D, SelectionBoxConfig.outlineMargin);
         if (shape.getKind() == OutlineShape.Kind.UNION) {
-            UnionOutlineRenderer.draw(shape.getBoxes(), cameraX, cameraY, cameraZ, outlineColour, thickness);
+            UnionOutlineRenderer.draw(shape.getBoxes(), cameraX, cameraY, cameraZ, outlineColour, thickness, margin);
             return;
         }
         if (shape.getKind() == OutlineShape.Kind.BOX) {
-            AxisAlignedBB box = shape.getBox().getOffsetBoundingBox(-cameraX, -cameraY, -cameraZ)
-                    .expand(EXPAND, EXPAND, EXPAND);
+            AxisAlignedBB box = shape.getBox().getOffsetBoundingBox(-cameraX, -cameraY, -cameraZ);
+            if (margin > 0.0D) {
+                box = box.expand(margin, margin, margin);
+            }
             if (shape.isFill() && SelectionBoxConfig.showFill && ColorUtil.alpha(innerColour) > 2) {
                 drawFilled(box, innerColour);
             }

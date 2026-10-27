@@ -20,7 +20,6 @@ public final class UnionOutlineRenderer {
 
     private static final double CELL = 1.0D / 16.0D;
     private static final double EPSILON = 1.0E-7D;
-    private static final double EXPAND = 0.002D;
 
     private static final int[][] NORMALS = {
             {1, 0, 0}, {-1, 0, 0}, {0, 1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, -1}
@@ -33,17 +32,18 @@ public final class UnionOutlineRenderer {
     }
 
     public static void draw(List<AxisAlignedBB> boxes, double cameraX, double cameraY, double cameraZ,
-                            int colour, float thickness) {
+                            int colour, float thickness, double margin) {
         if (boxes == null || boxes.isEmpty()) {
             return;
         }
+        margin = Math.max(0.0D, margin);
         RenderHelper.setColor(colour);
         GL11.glLineWidth(Math.max(1.0F, thickness));
         Tessellator tessellator = TessellatorManager.get();
         tessellator.startDrawing(GL11.GL_LINES);
 
         if (boxes.size() == 1) {
-            addBoxEdges(tessellator, boxes.get(0).expand(EXPAND, EXPAND, EXPAND),
+            addBoxEdges(tessellator, boxes.get(0).expand(margin, margin, margin),
                     cameraX, cameraY, cameraZ);
             tessellator.draw();
             return;
@@ -53,9 +53,9 @@ public final class UnionOutlineRenderer {
         double minY = Double.MAX_VALUE;
         double minZ = Double.MAX_VALUE;
         for (AxisAlignedBB box : boxes) {
-            minX = Math.min(minX, box.minX - EXPAND);
-            minY = Math.min(minY, box.minY - EXPAND);
-            minZ = Math.min(minZ, box.minZ - EXPAND);
+            minX = Math.min(minX, box.minX - margin);
+            minY = Math.min(minY, box.minY - margin);
+            minZ = Math.min(minZ, box.minZ - margin);
         }
         int originX = (int) Math.floor(minX / CELL);
         int originY = (int) Math.floor(minY / CELL);
@@ -64,12 +64,12 @@ public final class UnionOutlineRenderer {
         Set<Long> cells = new HashSet<Long>();
         List<int[]> cellList = new java.util.ArrayList<int[]>();
         for (AxisAlignedBB box : boxes) {
-            int ix0 = (int) Math.floor((box.minX - EXPAND) / CELL);
-            int iy0 = (int) Math.floor((box.minY - EXPAND) / CELL);
-            int iz0 = (int) Math.floor((box.minZ - EXPAND) / CELL);
-            int ix1 = (int) Math.floor((box.maxX + EXPAND - EPSILON) / CELL);
-            int iy1 = (int) Math.floor((box.maxY + EXPAND - EPSILON) / CELL);
-            int iz1 = (int) Math.floor((box.maxZ + EXPAND - EPSILON) / CELL);
+            int ix0 = (int) Math.floor((box.minX - margin) / CELL);
+            int iy0 = (int) Math.floor((box.minY - margin) / CELL);
+            int iz0 = (int) Math.floor((box.minZ - margin) / CELL);
+            int ix1 = (int) Math.floor((box.maxX + margin - EPSILON) / CELL);
+            int iy1 = (int) Math.floor((box.maxY + margin - EPSILON) / CELL);
+            int iz1 = (int) Math.floor((box.maxZ + margin - EPSILON) / CELL);
             for (int ix = ix0; ix <= ix1; ix++) {
                 for (int iy = iy0; iy <= iy1; iy++) {
                     for (int iz = iz0; iz <= iz1; iz++) {
