@@ -1,0 +1,8 @@
+/*
+ * GTNH-only build. GTNHLib provides the config system and Tessellator bridge.
+ * GT/AE/EnderIO/FMP shapes are read through reflection, so no compile dependencies
+ * on those mods are required.
+ */
+dependencies {
+    devOnlyNonPublishable("com.github.GTNewHorizons:GTNHLib:0.11.52:dev")
+}

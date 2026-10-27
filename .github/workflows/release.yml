@@ -1,0 +1,65 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Java 25
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "25"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Validate tag and read version
+        id: version
+        run: |
+          version="$(sed -n 's/^modVersion[[:space:]]*=[[:space:]]*//p' gradle.properties | tr -d '[:space:]')"
+          if [ -z "$version" ]; then
+            echo "modVersion is missing from gradle.properties" >&2
+            exit 1
+          fi
+
+          tag_version="${GITHUB_REF_NAME#v}"
+          if [ "$tag_version" != "$version" ]; then
+            echo "Tag ${GITHUB_REF_NAME} does not match modVersion ${version}" >&2
+            exit 1
+          fi
+
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+
+      - name: Build
+        run: ./gradlew clean build --no-daemon
+
+      - name: Collect release files
+        run: |
+          version="${{ steps.version.outputs.version }}"
+          mkdir -p release
+          cp "build/libs/crosshairselection-${version}.jar" release/
+          cp "build/libs/crosshairselection-${version}-sources.jar" release/
+          ls -l release
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Crosshair-Selection ${{ github.ref_name }}
+          generate_release_notes: true
+          files: release/*
+          fail_on_unmatched_files: true
+          overwrite_files: true

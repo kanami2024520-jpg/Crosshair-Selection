@@ -1,0 +1,21 @@
+{
+	"modListVersion": 2,
+	"modList": [{
+		"modid": "crosshairselection",
+		"name": "Crosshair-Selection",
+		"description": "Custom block selection box and custom crosshair in one client-side mod, tuned for GTNH.",
+		"version": "${modVersion}",
+		"mcversion": "${minecraftVersion}",
+		"url": "https://github.com/kanami2024520-jpg/Crosshair-Selection",
+		"updateUrl": "",
+		"authorList": ["kuionc"],
+		"credits": "",
+		"logoFile": "icon.png",
+		"screenshots": [],
+		"parent": "",
+		"requiredMods": ["unimixins", "gtnhlib", "gregtech", "EnderIO", "ForgeMultipart"],
+		"dependencies": [],
+		"dependants": [],
+		"useDependencyInformation": true
+	}]
+}

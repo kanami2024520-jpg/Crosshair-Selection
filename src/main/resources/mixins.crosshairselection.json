@@ -1,0 +1,14 @@
+{
+  "required": true,
+  "minVersion": "0.8.7",
+  "package": "me.kuionc.crosshairselection.mixin",
+  "compatibilityLevel": "JAVA_8",
+  "refmap": "mixins.crosshairselection.refmap.json",
+  "client": [
+    "MixinGuiIngameForge",
+    "MixinRenderGlobal"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

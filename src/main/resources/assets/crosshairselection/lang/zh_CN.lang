@@ -1,0 +1,49 @@
+crosshairselection.tab.selection=选中框
+crosshairselection.tab.crosshair=准星
+crosshairselection.save=保存
+crosshairselection.cancel=取消
+crosshairselection.defaults=默认值
+
+crosshairselection.enabled=启用：%s
+crosshairselection.thickness=粗细：%s
+crosshairselection.blink_alpha=闪烁不透明度：%s
+crosshairselection.blink_speed=闪烁速度：%s
+crosshairselection.rainbow=彩虹色：%s
+crosshairselection.link_blocks=连接方块：%s
+crosshairselection.show_hidden=显示隐藏方块：%s
+crosshairselection.colour=颜色 %s
+
+crosshairselection.type=类型：%s
+crosshairselection.width=宽度：%s
+crosshairselection.height=高度：%s
+crosshairselection.gap=间隙：%s
+crosshairselection.rotation=旋转：%s
+crosshairselection.outline=描边：%s
+crosshairselection.outline_thickness=描边粗细：%s
+crosshairselection.dot=中心点：%s
+crosshairselection.rainbow_speed=彩虹速度：%s
+crosshairselection.visible=默认显示：%s
+crosshairselection.visible_f1=F1 时显示：%s
+crosshairselection.visible_debug=F3 时显示：%s
+crosshairselection.visible_third=第三人称显示：%s
+
+crosshairselection.on=开
+crosshairselection.off=关
+
+crosshairselection.type.cross=十字
+crosshairselection.type.circle=圆形
+crosshairselection.type.square=方形
+crosshairselection.type.default=原版
+crosshairselection.type.arrow=箭头
+crosshairselection.type.triangle=三角形
+
+crosshairselection.colour.title=选择颜色
+crosshairselection.colour.red=红色：%s
+crosshairselection.colour.green=绿色：%s
+crosshairselection.colour.blue=蓝色：%s
+crosshairselection.colour.alpha=不透明度：%s
+crosshairselection.colour.alpha_value=不透明度：%s / 255
+crosshairselection.colour.ok=确定
+crosshairselection.colour.cancel=取消
+crosshairselection.fill=填充：%s
+crosshairselection.blink=闪烁：%s

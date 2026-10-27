@@ -1,0 +1,49 @@
+crosshairselection.tab.selection=Selection Box
+crosshairselection.tab.crosshair=Crosshair
+crosshairselection.save=Save
+crosshairselection.cancel=Cancel
+crosshairselection.defaults=Defaults
+
+crosshairselection.enabled=Enabled: %s
+crosshairselection.thickness=Thickness: %s
+crosshairselection.blink_alpha=Blink Alpha: %s
+crosshairselection.blink_speed=Blink Speed: %s
+crosshairselection.rainbow=Rainbow: %s
+crosshairselection.link_blocks=Link Blocks: %s
+crosshairselection.show_hidden=Show Hidden: %s
+crosshairselection.colour=Colour %s
+
+crosshairselection.type=Type: %s
+crosshairselection.width=Width: %s
+crosshairselection.height=Height: %s
+crosshairselection.gap=Gap: %s
+crosshairselection.rotation=Rotation: %s
+crosshairselection.outline=Outline: %s
+crosshairselection.outline_thickness=Outline Thickness: %s
+crosshairselection.dot=Center Dot: %s
+crosshairselection.rainbow_speed=Rainbow Speed: %s
+crosshairselection.visible=Visible: %s
+crosshairselection.visible_f1=Visible in F1: %s
+crosshairselection.visible_debug=Visible in F3: %s
+crosshairselection.visible_third=Visible in Third Person: %s
+
+crosshairselection.on=ON
+crosshairselection.off=OFF
+
+crosshairselection.type.cross=Cross
+crosshairselection.type.circle=Circle
+crosshairselection.type.square=Square
+crosshairselection.type.default=Default
+crosshairselection.type.arrow=Arrow
+crosshairselection.type.triangle=Triangle
+
+crosshairselection.colour.title=Choose Colour
+crosshairselection.colour.red=Red: %s
+crosshairselection.colour.green=Green: %s
+crosshairselection.colour.blue=Blue: %s
+crosshairselection.colour.alpha=Alpha: %s
+crosshairselection.colour.alpha_value=Alpha: %s / 255
+crosshairselection.colour.ok=OK
+crosshairselection.colour.cancel=Cancel
+crosshairselection.fill=Fill: %s
+crosshairselection.blink=Blink: %s
