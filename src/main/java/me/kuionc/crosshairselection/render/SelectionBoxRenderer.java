@@ -61,10 +61,13 @@ public final class SelectionBoxRenderer {
         float thickness = SelectionBoxConfig.thickness * Math.max(2.5F,
                 Minecraft.getMinecraft().displayWidth / 1920.0F * 2.5F);
 
-        GL11.glPushAttrib(GL11.GL_ENABLE_BIT | GL11.GL_LINE_BIT | GL11.GL_CURRENT_BIT | GL11.GL_DEPTH_BUFFER_BIT);
+        GL11.glPushAttrib(GL11.GL_ENABLE_BIT | GL11.GL_LINE_BIT | GL11.GL_CURRENT_BIT
+                | GL11.GL_DEPTH_BUFFER_BIT | GL11.GL_POLYGON_BIT);
         GL11.glDisable(GL11.GL_LIGHTING);
         GL11.glDisable(GL11.GL_TEXTURE_2D);
+        RenderHelper.bindWhiteTexture();
         GL11.glDisable(GL11.GL_CULL_FACE);
+        GL11.glDisable(GL11.GL_ALPHA_TEST);
         GL11.glEnable(GL11.GL_BLEND);
         GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
         GL11.glEnable(GL11.GL_LINE_SMOOTH);
@@ -74,14 +77,17 @@ public final class SelectionBoxRenderer {
             GL11.glDisable(GL11.GL_DEPTH_TEST);
         } else {
             GL11.glEnable(GL11.GL_DEPTH_TEST);
+            GL11.glDepthFunc(GL11.GL_LEQUAL);
         }
         GL11.glEnable(GL11.GL_POLYGON_OFFSET_FILL);
+        GL11.glEnable(GL11.GL_POLYGON_OFFSET_LINE);
         GL11.glPolygonOffset(-1.0F, -1.0F);
 
         for (OutlineShape shape : shapes) {
             drawShape(shape, cameraX, cameraY, cameraZ, colour, innerColour, thickness);
         }
 
+        GL11.glDisable(GL11.GL_POLYGON_OFFSET_LINE);
         GL11.glDisable(GL11.GL_POLYGON_OFFSET_FILL);
         GL11.glDepthMask(true);
         GL11.glDisable(GL11.GL_LINE_SMOOTH);
@@ -171,7 +177,7 @@ public final class SelectionBoxRenderer {
             y = c2 + v;
             z = along;
         }
-        tessellator.addVertex(x - cameraX, y - cameraY, z - cameraZ);
+        tessellator.addVertexWithUV(x - cameraX, y - cameraY, z - cameraZ, 0.5D, 0.5D);
     }
 
     private static void drawOutline(AxisAlignedBB box, int colour) {
@@ -214,17 +220,17 @@ public final class SelectionBoxRenderer {
 
     private static void line(Tessellator tessellator, double x1, double y1, double z1,
                              double x2, double y2, double z2) {
-        tessellator.addVertex(x1, y1, z1);
-        tessellator.addVertex(x2, y2, z2);
+        tessellator.addVertexWithUV(x1, y1, z1, 0.5D, 0.5D);
+        tessellator.addVertexWithUV(x2, y2, z2, 0.5D, 0.5D);
     }
 
     private static void quad(Tessellator tessellator,
                              double x1, double y1, double z1, double x2, double y2, double z2,
                              double x3, double y3, double z3, double x4, double y4, double z4) {
-        tessellator.addVertex(x1, y1, z1);
-        tessellator.addVertex(x2, y2, z2);
-        tessellator.addVertex(x3, y3, z3);
-        tessellator.addVertex(x4, y4, z4);
+        tessellator.addVertexWithUV(x1, y1, z1, 0.5D, 0.5D);
+        tessellator.addVertexWithUV(x2, y2, z2, 0.5D, 0.5D);
+        tessellator.addVertexWithUV(x3, y3, z3, 0.5D, 0.5D);
+        tessellator.addVertexWithUV(x4, y4, z4, 0.5D, 0.5D);
     }
 
     public static AxisAlignedBB getSelectedBox(World world, Block block, int x, int y, int z) {

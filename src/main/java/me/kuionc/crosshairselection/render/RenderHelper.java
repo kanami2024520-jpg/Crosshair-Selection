@@ -1,7 +1,9 @@
 package me.kuionc.crosshairselection.render;
 
 import com.gtnewhorizon.gtnhlib.client.renderer.TessellatorManager;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.Tessellator;
+import net.minecraft.util.ResourceLocation;
 import org.lwjgl.opengl.GL11;
 
 /**
@@ -11,7 +13,18 @@ import org.lwjgl.opengl.GL11;
  */
 public final class RenderHelper {
 
+    private static final ResourceLocation WHITE_TEXTURE =
+            new ResourceLocation("crosshairselection:textures/white.png");
+
     private RenderHelper() {
+    }
+
+    /**
+     * Shader packs always sample the bound texture, even when the fixed-function texture stage is
+     * disabled. World-space lines therefore need an opaque texture with valid UVs.
+     */
+    public static void bindWhiteTexture() {
+        Minecraft.getMinecraft().getTextureManager().bindTexture(WHITE_TEXTURE);
     }
 
     public static void setColor(int argb) {
