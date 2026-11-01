@@ -38,6 +38,7 @@ public final class UnionOutlineRenderer {
         }
         margin = Math.max(0.0D, margin);
         RenderHelper.setColor(colour);
+        RenderHelper.bindWhiteTexture();
         GL11.glLineWidth(Math.max(1.0F, thickness));
         Tessellator tessellator = TessellatorManager.get();
         tessellator.startDrawing(GL11.GL_LINES);
@@ -187,8 +188,8 @@ public final class UnionOutlineRenderer {
                 z1 = z0 + CELL;
             }
 
-            tessellator.addVertex(x0 - cameraX, y0 - cameraY, z0 - cameraZ);
-            tessellator.addVertex(x1 - cameraX, y1 - cameraY, z1 - cameraZ);
+            tessellator.addVertexWithUV(x0 - cameraX, y0 - cameraY, z0 - cameraZ, 0.5D, 0.5D);
+            tessellator.addVertexWithUV(x1 - cameraX, y1 - cameraY, z1 - cameraZ, 0.5D, 0.5D);
         }
     }
 
@@ -216,8 +217,8 @@ public final class UnionOutlineRenderer {
 
     private static void line(Tessellator tessellator, double x1, double y1, double z1,
                              double x2, double y2, double z2) {
-        tessellator.addVertex(x1, y1, z1);
-        tessellator.addVertex(x2, y2, z2);
+        tessellator.addVertexWithUV(x1, y1, z1, 0.5D, 0.5D);
+        tessellator.addVertexWithUV(x2, y2, z2, 0.5D, 0.5D);
     }
 
     private static long pack(int x, int y, int z) {
