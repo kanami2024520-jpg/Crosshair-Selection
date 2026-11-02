@@ -2,7 +2,9 @@ package me.kuionc.crosshairselection.proxy;
 
 import cpw.mods.fml.common.FMLCommonHandler;
 import cpw.mods.fml.common.event.FMLInitializationEvent;
+import me.kuionc.crosshairselection.command.CommandOpenConfig;
 import me.kuionc.crosshairselection.render.CrosshairRenderer;
+import net.minecraftforge.client.ClientCommandHandler;
 
 public class ClientProxy extends CommonProxy {
 
@@ -12,5 +14,6 @@ public class ClientProxy extends CommonProxy {
     public void init(FMLInitializationEvent event) {
         super.init(event);
         FMLCommonHandler.instance().bus().register(crosshairRenderer);
+        ClientCommandHandler.instance.registerCommand(new CommandOpenConfig());
     }
 }

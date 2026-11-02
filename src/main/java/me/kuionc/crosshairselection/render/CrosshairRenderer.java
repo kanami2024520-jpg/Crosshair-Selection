@@ -2,13 +2,16 @@ package me.kuionc.crosshairselection.render;
 
 import cpw.mods.fml.common.eventhandler.SubscribeEvent;
 import cpw.mods.fml.common.gameevent.TickEvent;
+import me.kuionc.crosshairselection.compat.TicCrosshairCompat;
 import me.kuionc.crosshairselection.config.CrosshairConfig;
+import me.kuionc.crosshairselection.config.SelectionBoxConfig;
 import me.kuionc.crosshairselection.util.ColorUtil;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Gui;
 import net.minecraft.client.gui.ScaledResolution;
 import net.minecraft.util.ResourceLocation;
 import org.lwjgl.opengl.GL11;
+import org.lwjgl.opengl.GL13;
 
 /**
  * Draws the custom crosshair and hides the vanilla one through a Mixin.
@@ -18,6 +21,7 @@ public class CrosshairRenderer {
     private static final ResourceLocation VANILLA_ICONS = new ResourceLocation("textures/gui/icons.png");
     private final Minecraft minecraft = Minecraft.getMinecraft();
     private int guiScale = 1;
+    private float bowSpread;
 
     @SubscribeEvent
     public void onRenderTick(TickEvent.RenderTickEvent event) {
@@ -49,6 +53,9 @@ public class CrosshairRenderer {
         if (minecraft.gameSettings.hideGUI && !CrosshairConfig.visibleHiddenGui) {
             return false;
         }
+        if (TicCrosshairCompat.shouldUseTicCrosshair(minecraft.thePlayer)) {
+            return false;
+        }
         return !minecraft.gameSettings.showDebugInfo || CrosshairConfig.visibleDebug;
     }
 
@@ -61,12 +68,25 @@ public class CrosshairRenderer {
                 this.minecraft.displayWidth, this.minecraft.displayHeight);
         this.guiScale = Math.max(1, resolution.getScaleFactor());
         int colour = currentColour();
+        boolean flow = CrosshairConfig.rainbow && CrosshairConfig.rainbowFlow;
+        float flowSpeed = CrosshairConfig.rainbowSpeed;
+        boolean drawingBow = TicCrosshairCompat.isDrawingBow(this.minecraft.thePlayer);
+        this.bowSpread = drawingBow
+                ? (1.0F - TicCrosshairCompat.progress(this.minecraft.thePlayer)) * 25.0F
+                : 0.0F;
         GL11.glPushAttrib(GL11.GL_ENABLE_BIT | GL11.GL_COLOR_BUFFER_BIT | GL11.GL_CURRENT_BIT | GL11.GL_LINE_BIT);
         GL11.glDisable(GL11.GL_TEXTURE_2D);
         GL11.glDisable(GL11.GL_DEPTH_TEST);
         GL11.glDisable(GL11.GL_CULL_FACE);
         GL11.glEnable(GL11.GL_BLEND);
         GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
+        GL11.glEnable(GL11.GL_LINE_SMOOTH);
+        GL11.glHint(GL11.GL_LINE_SMOOTH_HINT, GL11.GL_NICEST);
+        if (SelectionBoxConfig.antiAlias) {
+            GL11.glEnable(GL13.GL_MULTISAMPLE);
+        } else {
+            GL11.glDisable(GL13.GL_MULTISAMPLE);
+        }
         GL11.glPushMatrix();
         GL11.glTranslatef(drawX, drawY, 0.0F);
         if (CrosshairConfig.rotation != 0) {
@@ -75,31 +95,19 @@ public class CrosshairRenderer {
         GL11.glTranslatef(-drawX, -drawY, 0.0F);
 
         switch (CrosshairConfig.type) {
-            case CIRCLE:
-                drawCircle(drawX, drawY, colour);
-                break;
-            case SQUARE:
-                drawSquare(drawX, drawY, colour);
-                break;
             case DEFAULT:
                 drawVanilla(drawX, drawY);
                 break;
-            case ARROW:
-                drawArrow(drawX, drawY, colour);
-                break;
-            case TRIANGLE:
-                drawTriangle(drawX, drawY, colour);
-                break;
             case CROSS:
             default:
-                drawCross(drawX, drawY, colour);
+                drawCross(drawX, drawY, colour, flow, flowSpeed);
                 break;
         }
 
         if (CrosshairConfig.dot) {
             float dotHalf = Math.max(thickness(), 1.0F / this.guiScale) / 2.0F;
             RenderHelper.drawRect(drawX - dotHalf, drawY - dotHalf, drawX + dotHalf, drawY + dotHalf,
-                    CrosshairConfig.dotColour);
+                    CrosshairConfig.dotColour, flow, flowSpeed);
         }
 
         GL11.glPopMatrix();
@@ -108,7 +116,7 @@ public class CrosshairRenderer {
 
     private int currentColour() {
         int base = CrosshairConfig.colour;
-        if (CrosshairConfig.rainbow) {
+        if (CrosshairConfig.rainbow && !CrosshairConfig.rainbowFlow) {
             float hue = (System.currentTimeMillis() % 100000L) / 100000.0F
                     * CrosshairConfig.rainbowSpeed / 100.0F;
             int rgb = ColorUtil.hsbToRgb(hue, 0.8F, 1.0F);
@@ -126,97 +134,38 @@ public class CrosshairRenderer {
         return Math.max(CrosshairConfig.thickness / 4.0F, 1.0F / this.guiScale);
     }
 
+    private float gap() {
+        return CrosshairConfig.gap + this.bowSpread;
+    }
+
     private float outlineThickness() {
         return Math.max(CrosshairConfig.outlineThickness, 1.0F / this.guiScale);
     }
 
-    private void drawCross(int drawX, int drawY, int colour) {
+    private void drawCross(int drawX, int drawY, int colour, boolean flow, float flowSpeed) {
         float line = thickness();
         float half = line / 2.0F;
-        float gap = CrosshairConfig.gap;
+        float gap = gap();
         float width = CrosshairConfig.width;
         float height = CrosshairConfig.height;
         if (CrosshairConfig.outline && CrosshairConfig.outlineThickness > 0.01F) {
             float outline = outlineThickness();
             int outlineColour = CrosshairConfig.outlineColour;
-            drawOutlineAroundBar(drawX - half, drawY - gap - height, drawX + half, drawY - gap, outline, outlineColour);
-            drawOutlineAroundBar(drawX - half, drawY + gap, drawX + half, drawY + gap + height, outline, outlineColour);
-            drawOutlineAroundBar(drawX - gap - width, drawY - half, drawX - gap, drawY + half, outline, outlineColour);
-            drawOutlineAroundBar(drawX + gap, drawY - half, drawX + gap + width, drawY + half, outline, outlineColour);
+            drawOutlineAroundBar(drawX - half, drawY - gap - height, drawX + half, drawY - gap, outline, outlineColour, flow, flowSpeed);
+            drawOutlineAroundBar(drawX - half, drawY + gap, drawX + half, drawY + gap + height, outline, outlineColour, flow, flowSpeed);
+            drawOutlineAroundBar(drawX - gap - width, drawY - half, drawX - gap, drawY + half, outline, outlineColour, flow, flowSpeed);
+            drawOutlineAroundBar(drawX + gap, drawY - half, drawX + gap + width, drawY + half, outline, outlineColour, flow, flowSpeed);
         }
-        RenderHelper.drawRect(drawX - half, drawY - gap - height, drawX + half, drawY - gap, colour);
-        RenderHelper.drawRect(drawX - half, drawY + gap, drawX + half, drawY + gap + height, colour);
-        RenderHelper.drawRect(drawX - gap - width, drawY - half, drawX - gap, drawY + half, colour);
-        RenderHelper.drawRect(drawX + gap, drawY - half, drawX + gap + width, drawY + half, colour);
+        RenderHelper.drawRect(drawX - half, drawY - gap - height, drawX + half, drawY - gap, colour, flow, flowSpeed);
+        RenderHelper.drawRect(drawX - half, drawY + gap, drawX + half, drawY + gap + height, colour, flow, flowSpeed);
+        RenderHelper.drawRect(drawX - gap - width, drawY - half, drawX - gap, drawY + half, colour, flow, flowSpeed);
+        RenderHelper.drawRect(drawX + gap, drawY - half, drawX + gap + width, drawY + half, colour, flow, flowSpeed);
     }
 
-    private static void drawOutlineAroundBar(float x1, float y1, float x2, float y2, float margin, int colour) {
-        RenderHelper.drawOutline(x1 - margin, y1 - margin, x2 + margin, y2 + margin, margin, colour);
-    }
-
-    private void drawCircle(int drawX, int drawY, int colour) {
-        float line = thickness();
-        float radius = CrosshairConfig.gap + line / 2.0F;
-        if (CrosshairConfig.outline && CrosshairConfig.outlineThickness > 0.01F) {
-            float outline = outlineThickness();
-            RenderHelper.drawCircle(drawX, drawY, radius + line / 2.0F + outline / 2.0F,
-                    outline, CrosshairConfig.outlineColour);
-            RenderHelper.drawCircle(drawX, drawY, radius - line / 2.0F - outline / 2.0F,
-                    outline, CrosshairConfig.outlineColour);
-        }
-        RenderHelper.drawCircle(drawX, drawY, radius, line, colour);
-    }
-
-    private void drawSquare(int drawX, int drawY, int colour) {
-        float gap = CrosshairConfig.gap;
-        float line = thickness();
-        if (CrosshairConfig.outline && CrosshairConfig.outlineThickness > 0.01F) {
-            float outline = outlineThickness();
-            RenderHelper.drawOutline(drawX - gap, drawY - gap, drawX + gap, drawY + gap,
-                    outline, CrosshairConfig.outlineColour);
-            RenderHelper.drawOutline(drawX - gap - line - outline, drawY - gap - line - outline,
-                    drawX + gap + line + outline, drawY + gap + line + outline,
-                    outline, CrosshairConfig.outlineColour);
-        }
-        RenderHelper.drawRect(drawX - gap - line, drawY - gap - line,
-                drawX + gap + line, drawY - gap, colour);
-        RenderHelper.drawRect(drawX - gap - line, drawY + gap,
-                drawX + gap + line, drawY + gap + line, colour);
-        RenderHelper.drawRect(drawX - gap - line, drawY - gap,
-                drawX - gap, drawY + gap, colour);
-        RenderHelper.drawRect(drawX + gap, drawY - gap,
-                drawX + gap + line, drawY + gap, colour);
-    }
-
-    private void drawArrow(int drawX, int drawY, int colour) {
-        float width = CrosshairConfig.width;
-        float height = CrosshairConfig.height;
-        RenderHelper.drawLines(new float[]{
-                drawX - width, drawY + height, drawX, drawY,
-                drawX, drawY, drawX + width, drawY + height
-        }, Math.max(1.0F, thickness() * this.guiScale), colour);
-    }
-
-    private void drawTriangle(int drawX, int drawY, int colour) {
-        float width = CrosshairConfig.width / 2.0F;
-        float height = CrosshairConfig.height / 2.0F;
-        float gap = CrosshairConfig.gap;
-        float tipY = drawY - gap - height;
-        float bottomY = drawY + gap + height;
-        if (CrosshairConfig.outline && CrosshairConfig.outlineThickness > 0.01F) {
-            float outline = outlineThickness();
-            RenderHelper.drawLines(new float[]{
-                    drawX, tipY - outline, drawX - gap - width - outline, bottomY + outline / 2.0F,
-                    drawX - gap - width - outline, bottomY + outline / 2.0F,
-                    drawX + gap + width + outline, bottomY + outline / 2.0F,
-                    drawX + gap + width + outline, bottomY + outline / 2.0F, drawX, tipY - outline
-            }, Math.max(1.0F, outline * this.guiScale), CrosshairConfig.outlineColour);
-        }
-        RenderHelper.drawLines(new float[]{
-                drawX, tipY, drawX - gap - width, bottomY,
-                drawX - gap - width, bottomY, drawX + gap + width, bottomY,
-                drawX + gap + width, bottomY, drawX, tipY
-        }, Math.max(1.0F, thickness() * this.guiScale), colour);
+    private static void drawOutlineAroundBar(float x1, float y1, float x2, float y2, float margin,
+                                              int colour, boolean flow, float flowSpeed) {
+        RenderHelper.drawOutline(x1 - margin, y1 - margin, x2 + margin, y2 + margin, margin,
+                colour, flow, flowSpeed);
     }
 
     private void drawVanilla(int drawX, int drawY) {

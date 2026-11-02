@@ -11,6 +11,7 @@ import net.minecraft.util.AxisAlignedBB;
 import net.minecraft.util.MovingObjectPosition;
 import net.minecraft.world.World;
 import org.lwjgl.opengl.GL11;
+import org.lwjgl.opengl.GL13;
 
 import java.util.List;
 
@@ -19,18 +20,64 @@ import java.util.List;
  */
 public final class SelectionBoxRenderer {
 
+    private static World lastWorld;
+    private static boolean hasSelection;
+    private static int lastX;
+    private static int lastY;
+    private static int lastZ;
+    private static int fromX;
+    private static int fromY;
+    private static int fromZ;
+    private static long transitionStart;
+
     private SelectionBoxRenderer() {
     }
 
     public static boolean render(EntityPlayer player, MovingObjectPosition hitResult, float partialTicks) {
         if (!SelectionBoxConfig.enabled || player == null || hitResult == null
                 || hitResult.typeOfHit != MovingObjectPosition.MovingObjectType.BLOCK) {
+            resetSmooth();
             return false;
         }
         World world = player.worldObj;
         int x = hitResult.blockX;
         int y = hitResult.blockY;
         int z = hitResult.blockZ;
+        long now = System.currentTimeMillis();
+        if (lastWorld != world) {
+            resetSmooth();
+            lastWorld = world;
+        }
+        double offsetX = 0.0D;
+        double offsetY = 0.0D;
+        double offsetZ = 0.0D;
+        if (!hasSelection) {
+            hasSelection = true;
+            lastX = x;
+            lastY = y;
+            lastZ = z;
+            transitionStart = 0L;
+        } else if (x != lastX || y != lastY || z != lastZ) {
+            fromX = lastX;
+            fromY = lastY;
+            fromZ = lastZ;
+            lastX = x;
+            lastY = y;
+            lastZ = z;
+            transitionStart = now;
+        }
+        if (SelectionBoxConfig.smoothTransition && transitionStart > 0L) {
+            float duration = Math.max(0.05F, SelectionBoxConfig.transitionDuration) * 1000.0F;
+            float t = (now - transitionStart) / duration;
+            if (t >= 1.0F) {
+                transitionStart = 0L;
+            } else {
+                double eased = 1.0D - Math.pow(1.0D - t, 3.0D);
+                offsetX = (fromX - x) * (1.0D - eased);
+                offsetY = (fromY - y) * (1.0D - eased);
+                offsetZ = (fromZ - z) * (1.0D - eased);
+            }
+        }
         Block block = world.getBlock(x, y, z);
         AxisAlignedBB primary = getSelectedBox(world, block, x, y, z);
         if (primary == null) {
@@ -58,6 +105,9 @@ public final class SelectionBoxRenderer {
             blinkAlpha = SelectionBoxConfig.blinkAlpha;
         }
         int innerColour = ColorUtil.withAlpha(colour, blinkAlpha);
+        boolean flow = SelectionBoxConfig.rainbow && SelectionBoxConfig.rainbowFlow;
+        long flowTime = System.currentTimeMillis();
+        float flowSpeed = SelectionBoxConfig.rainbowSpeed;
         float thickness = SelectionBoxConfig.thickness * Math.max(2.5F,
                 Minecraft.getMinecraft().displayWidth / 1920.0F * 2.5F);
 
@@ -72,6 +122,11 @@ public final class SelectionBoxRenderer {
         GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
         GL11.glEnable(GL11.GL_LINE_SMOOTH);
         GL11.glHint(GL11.GL_LINE_SMOOTH_HINT, GL11.GL_NICEST);
+        if (SelectionBoxConfig.antiAlias) {
+            GL11.glEnable(GL13.GL_MULTISAMPLE);
+        } else {
+            GL11.glDisable(GL13.GL_MULTISAMPLE);
+        }
         GL11.glDepthMask(false);
         if (SelectionBoxConfig.showHidden) {
             GL11.glDisable(GL11.GL_DEPTH_TEST);
@@ -83,9 +138,15 @@ public final class SelectionBoxRenderer {
         GL11.glEnable(GL11.GL_POLYGON_OFFSET_LINE);
         GL11.glPolygonOffset(-1.0F, -1.0F);
 
-        for (OutlineShape shape : shapes) {
-            drawShape(shape, cameraX, cameraY, cameraZ, colour, innerColour, thickness);
+        GL11.glPushMatrix();
+        if (offsetX != 0.0D || offsetY != 0.0D || offsetZ != 0.0D) {
+            GL11.glTranslated(offsetX, offsetY, offsetZ);
         }
+        for (OutlineShape shape : shapes) {
+            drawShape(shape, cameraX, cameraY, cameraZ, colour, innerColour, thickness,
+                    flow, flowTime, flowSpeed);
+        }
+        GL11.glPopMatrix();
 
         GL11.glDisable(GL11.GL_POLYGON_OFFSET_LINE);
         GL11.glDisable(GL11.GL_POLYGON_OFFSET_FILL);
@@ -102,10 +163,12 @@ public final class SelectionBoxRenderer {
     }
 
     private static void drawShape(OutlineShape shape, double cameraX, double cameraY, double cameraZ,
-                                  int outlineColour, int innerColour, float thickness) {
+                                  int outlineColour, int innerColour, float thickness,
+                                  boolean flow, long flowTime, float flowSpeed) {
         double margin = Math.max(0.0D, SelectionBoxConfig.outlineMargin);
         if (shape.getKind() == OutlineShape.Kind.UNION) {
-            UnionOutlineRenderer.draw(shape.getBoxes(), cameraX, cameraY, cameraZ, outlineColour, thickness, margin);
+            UnionOutlineRenderer.draw(shape.getBoxes(), cameraX, cameraY, cameraZ,
+                    outlineColour, thickness, margin, flow, flowTime, flowSpeed);
             return;
         }
         if (shape.getKind() == OutlineShape.Kind.BOX) {
@@ -114,10 +177,11 @@ public final class SelectionBoxRenderer {
                 box = box.expand(margin, margin, margin);
             }
             if (shape.isFill() && SelectionBoxConfig.showFill && ColorUtil.alpha(innerColour) > 2) {
-                drawFilled(box, innerColour);
+                drawFilled(box, innerColour, flow, flowTime, flowSpeed, cameraX, cameraY, cameraZ);
             }
             GL11.glLineWidth(Math.max(1.0F, thickness));
-            drawOutline(box, outlineColour);
+            drawOutline(box, outlineColour, thickness, flow, flowTime, flowSpeed,
+                    cameraX, cameraY, cameraZ);
         } else {
             drawCylinder(shape, cameraX, cameraY, cameraZ, outlineColour, thickness);
         }
@@ -180,57 +244,132 @@ public final class SelectionBoxRenderer {
         tessellator.addVertexWithUV(x - cameraX, y - cameraY, z - cameraZ, 0.5D, 0.5D);
     }
 
-    private static void drawOutline(AxisAlignedBB box, int colour) {
+    private static void drawOutline(AxisAlignedBB box, int colour, float thickness,
+                                    boolean flow, long flowTime,
+                                    float flowSpeed, double cameraX, double cameraY, double cameraZ) {
+        AxisAlignedBB worldBox = box.getOffsetBoundingBox(cameraX, cameraY, cameraZ);
+        if (flow) {
+            FlowRenderer.drawBox3D(worldBox, cameraX, cameraY, cameraZ,
+                    colour, flowTime, flowSpeed, 8, thickness);
+            return;
+        }
+        ThickLineRenderer.drawBox3D(worldBox, cameraX, cameraY, cameraZ, colour, thickness);
+        if (true) {
+            return;
+        }
         RenderHelper.setColor(colour);
         Tessellator tessellator = TessellatorManager.get();
         tessellator.startDrawing(GL11.GL_LINES);
-        line(tessellator, box.minX, box.minY, box.minZ, box.maxX, box.minY, box.minZ);
-        line(tessellator, box.maxX, box.minY, box.minZ, box.maxX, box.minY, box.maxZ);
-        line(tessellator, box.maxX, box.minY, box.maxZ, box.minX, box.minY, box.maxZ);
-        line(tessellator, box.minX, box.minY, box.maxZ, box.minX, box.minY, box.minZ);
-        line(tessellator, box.minX, box.maxY, box.minZ, box.maxX, box.maxY, box.minZ);
-        line(tessellator, box.maxX, box.maxY, box.minZ, box.maxX, box.maxY, box.maxZ);
-        line(tessellator, box.maxX, box.maxY, box.maxZ, box.minX, box.maxY, box.maxZ);
-        line(tessellator, box.minX, box.maxY, box.maxZ, box.minX, box.maxY, box.minZ);
-        line(tessellator, box.minX, box.minY, box.minZ, box.minX, box.maxY, box.minZ);
-        line(tessellator, box.maxX, box.minY, box.minZ, box.maxX, box.maxY, box.minZ);
-        line(tessellator, box.maxX, box.minY, box.maxZ, box.maxX, box.maxY, box.maxZ);
-        line(tessellator, box.minX, box.minY, box.maxZ, box.minX, box.maxY, box.maxZ);
+        line(tessellator, box.minX, box.minY, box.minZ, box.maxX, box.minY, box.minZ,
+                colour, flow, flowTime, flowSpeed, cameraX, cameraY, cameraZ);
+        line(tessellator, box.maxX, box.minY, box.minZ, box.maxX, box.minY, box.maxZ,
+                colour, flow, flowTime, flowSpeed, cameraX, cameraY, cameraZ);
+        line(tessellator, box.maxX, box.minY, box.maxZ, box.minX, box.minY, box.maxZ,
+                colour, flow, flowTime, flowSpeed, cameraX, cameraY, cameraZ);
+        line(tessellator, box.minX, box.minY, box.maxZ, box.minX, box.minY, box.minZ,
+                colour, flow, flowTime, flowSpeed, cameraX, cameraY, cameraZ);
+        line(tessellator, box.minX, box.maxY, box.minZ, box.maxX, box.maxY, box.minZ,
+                colour, flow, flowTime, flowSpeed, cameraX, cameraY, cameraZ);
+        line(tessellator, box.maxX, box.maxY, box.minZ, box.maxX, box.maxY, box.maxZ,
+                colour, flow, flowTime, flowSpeed, cameraX, cameraY, cameraZ);
+        line(tessellator, box.maxX, box.maxY, box.maxZ, box.minX, box.maxY, box.maxZ,
+                colour, flow, flowTime, flowSpeed, cameraX, cameraY, cameraZ);
+        line(tessellator, box.minX, box.maxY, box.maxZ, box.minX, box.maxY, box.minZ,
+                colour, flow, flowTime, flowSpeed, cameraX, cameraY, cameraZ);
+        line(tessellator, box.minX, box.minY, box.minZ, box.minX, box.maxY, box.minZ,
+                colour, flow, flowTime, flowSpeed, cameraX, cameraY, cameraZ);
+        line(tessellator, box.maxX, box.minY, box.minZ, box.maxX, box.maxY, box.minZ,
+                colour, flow, flowTime, flowSpeed, cameraX, cameraY, cameraZ);
+        line(tessellator, box.maxX, box.minY, box.maxZ, box.maxX, box.maxY, box.maxZ,
+                colour, flow, flowTime, flowSpeed, cameraX, cameraY, cameraZ);
+        line(tessellator, box.minX, box.minY, box.maxZ, box.minX, box.maxY, box.maxZ,
+                colour, flow, flowTime, flowSpeed, cameraX, cameraY, cameraZ);
         tessellator.draw();
     }
 
-    private static void drawFilled(AxisAlignedBB box, int colour) {
+    private static void drawFilled(AxisAlignedBB box, int colour, boolean flow, long flowTime,
+                                   float flowSpeed, double cameraX, double cameraY, double cameraZ) {
+        if (flow) {
+            FlowRenderer.drawFilledBox3D(box.getOffsetBoundingBox(cameraX, cameraY, cameraZ),
+                    cameraX, cameraY, cameraZ, colour, flowTime, flowSpeed, 6);
+            return;
+        }
         RenderHelper.setColor(colour);
         Tessellator tessellator = TessellatorManager.get();
         tessellator.startDrawingQuads();
         quad(tessellator, box.minX, box.minY, box.minZ, box.maxX, box.minY, box.minZ,
-                box.maxX, box.minY, box.maxZ, box.minX, box.minY, box.maxZ);
+                box.maxX, box.minY, box.maxZ, box.minX, box.minY, box.maxZ,
+                colour, flow, flowTime, flowSpeed, cameraX, cameraY, cameraZ);
         quad(tessellator, box.minX, box.maxY, box.minZ, box.minX, box.maxY, box.maxZ,
-                box.maxX, box.maxY, box.maxZ, box.maxX, box.maxY, box.minZ);
+                box.maxX, box.maxY, box.maxZ, box.maxX, box.maxY, box.minZ,
+                colour, flow, flowTime, flowSpeed, cameraX, cameraY, cameraZ);
         quad(tessellator, box.minX, box.minY, box.minZ, box.minX, box.maxY, box.minZ,
-                box.maxX, box.maxY, box.minZ, box.maxX, box.minY, box.minZ);
+                box.maxX, box.maxY, box.minZ, box.maxX, box.minY, box.minZ,
+                colour, flow, flowTime, flowSpeed, cameraX, cameraY, cameraZ);
         quad(tessellator, box.minX, box.minY, box.maxZ, box.maxX, box.minY, box.maxZ,
-                box.maxX, box.maxY, box.maxZ, box.minX, box.maxY, box.maxZ);
+                box.maxX, box.maxY, box.maxZ, box.minX, box.maxY, box.maxZ,
+                colour, flow, flowTime, flowSpeed, cameraX, cameraY, cameraZ);
         quad(tessellator, box.minX, box.minY, box.minZ, box.minX, box.minY, box.maxZ,
-                box.minX, box.maxY, box.maxZ, box.minX, box.maxY, box.minZ);
+                box.minX, box.maxY, box.maxZ, box.minX, box.maxY, box.minZ,
+                colour, flow, flowTime, flowSpeed, cameraX, cameraY, cameraZ);
         quad(tessellator, box.maxX, box.minY, box.minZ, box.maxX, box.maxY, box.minZ,
-                box.maxX, box.maxY, box.maxZ, box.maxX, box.minY, box.maxZ);
+                box.maxX, box.maxY, box.maxZ, box.maxX, box.minY, box.maxZ,
+                colour, flow, flowTime, flowSpeed, cameraX, cameraY, cameraZ);
         tessellator.draw();
     }
 
     private static void line(Tessellator tessellator, double x1, double y1, double z1,
-                             double x2, double y2, double z2) {
+                             double x2, double y2, double z2, int colour, boolean flow,
+                             long flowTime, float flowSpeed, double cameraX, double cameraY, double cameraZ) {
+        if (flow) {
+            int alpha = ColorUtil.alpha(colour);
+            RenderHelper.setVertexColor(tessellator,
+                    Rainbow.colorAt(x1 + cameraX, y1 + cameraY, z1 + cameraZ, flowTime, flowSpeed, alpha));
+        }
         tessellator.addVertexWithUV(x1, y1, z1, 0.5D, 0.5D);
+        if (flow) {
+            int alpha = ColorUtil.alpha(colour);
+            RenderHelper.setVertexColor(tessellator,
+                    Rainbow.colorAt(x2 + cameraX, y2 + cameraY, z2 + cameraZ, flowTime, flowSpeed, alpha));
+        }
         tessellator.addVertexWithUV(x2, y2, z2, 0.5D, 0.5D);
     }
 
     private static void quad(Tessellator tessellator,
                              double x1, double y1, double z1, double x2, double y2, double z2,
-                             double x3, double y3, double z3, double x4, double y4, double z4) {
+                             double x3, double y3, double z3, double x4, double y4, double z4,
+                             int colour, boolean flow, long flowTime, float flowSpeed,
+                             double cameraX, double cameraY, double cameraZ) {
+        if (flow) {
+            int alpha = ColorUtil.alpha(colour);
+            RenderHelper.setVertexColor(tessellator,
+                    Rainbow.colorAt(x1 + cameraX, y1 + cameraY, z1 + cameraZ, flowTime, flowSpeed, alpha));
+        }
         tessellator.addVertexWithUV(x1, y1, z1, 0.5D, 0.5D);
+        if (flow) {
+            int alpha = ColorUtil.alpha(colour);
+            RenderHelper.setVertexColor(tessellator,
+                    Rainbow.colorAt(x2 + cameraX, y2 + cameraY, z2 + cameraZ, flowTime, flowSpeed, alpha));
+        }
         tessellator.addVertexWithUV(x2, y2, z2, 0.5D, 0.5D);
+        if (flow) {
+            int alpha = ColorUtil.alpha(colour);
+            RenderHelper.setVertexColor(tessellator,
+                    Rainbow.colorAt(x3 + cameraX, y3 + cameraY, z3 + cameraZ, flowTime, flowSpeed, alpha));
+        }
         tessellator.addVertexWithUV(x3, y3, z3, 0.5D, 0.5D);
+        if (flow) {
+            int alpha = ColorUtil.alpha(colour);
+            RenderHelper.setVertexColor(tessellator,
+                    Rainbow.colorAt(x4 + cameraX, y4 + cameraY, z4 + cameraZ, flowTime, flowSpeed, alpha));
+        }
         tessellator.addVertexWithUV(x4, y4, z4, 0.5D, 0.5D);
+    }
+
+    private static void resetSmooth() {
+        lastWorld = null;
+        hasSelection = false;
+        transitionStart = 0L;
     }
 
     public static AxisAlignedBB getSelectedBox(World world, Block block, int x, int y, int z) {

@@ -1,6 +1,8 @@
 package me.kuionc.crosshairselection.mixin;
 
+import me.kuionc.crosshairselection.compat.TicCrosshairCompat;
 import me.kuionc.crosshairselection.config.CrosshairConfig;
+import net.minecraft.client.Minecraft;
 import net.minecraftforge.client.GuiIngameForge;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -16,7 +18,8 @@ public class MixinGuiIngameForge {
 
     @Inject(method = "renderCrosshairs", at = @At("HEAD"), cancellable = true, remap = false)
     private void crosshairselection$hideVanillaCrosshair(int width, int height, CallbackInfo ci) {
-        if (CrosshairConfig.enabled) {
+        if (CrosshairConfig.enabled
+                && !TicCrosshairCompat.shouldUseTicCrosshair(Minecraft.getMinecraft().thePlayer)) {
             ci.cancel();
         }
     }

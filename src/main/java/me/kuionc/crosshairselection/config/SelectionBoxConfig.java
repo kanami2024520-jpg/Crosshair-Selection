@@ -37,11 +37,31 @@ public class SelectionBoxConfig {
     @Config.Comment("Cycle the outline through the colour spectrum.")
     public static boolean rainbow = false;
 
+    @Config.Comment("Use a local flowing rainbow gradient instead of one colour for the whole outline.")
+    public static boolean rainbowFlow = true;
+
+    @Config.Comment("Rainbow animation speed (0 - 2000).")
+    @Config.RangeInt(min = 0, max = 2000)
+    public static int rainbowSpeed = 500;
+
+    @Config.Comment("Rainbow texture width: 0 = Auto, 128, 256 or 512.")
+    public static int rainbowTextureSize = 0;
+
+    @Config.Comment("Enable multisampling where the renderer supports it.")
+    public static boolean antiAlias = false;
+
     @Config.Comment("Link the boxes of doors, beds, double plants and pistons.")
     public static boolean linkBlocks = false;
 
-    @Config.Comment("Draw the box through blocks (disables the depth test).")
+    @Config.Comment("Draw the selection box through blocks (ignore depth testing).")
     public static boolean showHidden = false;
+
+    @Config.Comment("Animate the selection box when the targeted block changes.")
+    public static boolean smoothTransition = false;
+
+    @Config.Comment("Selection transition duration in seconds (0.05 - 0.5).")
+    @Config.RangeFloat(min = 0.05F, max = 0.5F)
+    public static float transitionDuration = 0.15F;
 
     @Config.Comment("Draw the inner fill inside the selection box.")
     public static boolean showFill = true;
@@ -57,8 +77,14 @@ public class SelectionBoxConfig {
         blinkAlpha = 99;
         blinkSpeed = 0.2F;
         rainbow = false;
+        rainbowFlow = true;
+        rainbowSpeed = 500;
+        rainbowTextureSize = 0;
+        antiAlias = false;
         linkBlocks = false;
         showHidden = false;
+        smoothTransition = false;
+        transitionDuration = 0.15F;
         showFill = true;
         blink = true;
     }

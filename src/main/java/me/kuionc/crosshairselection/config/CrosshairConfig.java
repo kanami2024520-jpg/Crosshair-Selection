@@ -60,9 +60,15 @@ public class CrosshairConfig {
     @Config.Comment("Cycle the crosshair through the colour spectrum.")
     public static boolean rainbow = false;
 
+    @Config.Comment("Use a local flowing rainbow gradient instead of one colour for the whole crosshair.")
+    public static boolean rainbowFlow = true;
+
     @Config.Comment("Rainbow animation speed (0 - 2000).")
     @Config.RangeInt(min = 0, max = 2000)
     public static int rainbowSpeed = 500;
+
+    @Config.Comment("Use Tinkers' Construct's own crosshair for IWindup bows and crossbows.")
+    public static boolean useTicBowCrosshair = false;
 
     @Config.Comment("Show the crosshair during normal gameplay.")
     public static boolean visibleDefault = true;
@@ -91,7 +97,9 @@ public class CrosshairConfig {
         dot = false;
         dotColour = 0xFF000000;
         rainbow = false;
+        rainbowFlow = true;
         rainbowSpeed = 500;
+        useTicBowCrosshair = false;
         visibleDefault = true;
         visibleHiddenGui = true;
         visibleDebug = true;
