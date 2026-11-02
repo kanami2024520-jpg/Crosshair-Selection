@@ -6,7 +6,7 @@ crosshairselection.defaults=Defaults
 
 crosshairselection.enabled=Enabled: %s
 crosshairselection.thickness=Thickness: %s
-crosshairselection.outline_margin=Outline Margin: %s
+crosshairselection.outline_margin=Selection Box Margin: %s
 crosshairselection.blink_alpha=Blink Alpha: %s
 crosshairselection.blink_speed=Blink Speed: %s
 crosshairselection.rainbow=Rainbow: %s
@@ -93,3 +93,4 @@ crosshairselection.rainbow_texture_size_hint=Auto chooses 128/256/512 from your 
 crosshairselection.anti_alias=Anti-Alias (MSAA): %s
 crosshairselection.auto=Auto
 crosshairselection.gt_x_style.full_x=Full X
+crosshairselection.gt_extra_margin=GT Extra Margin: %s

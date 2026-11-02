@@ -172,10 +172,11 @@ public final class SelectionBoxRenderer {
             return;
         }
         if (shape.getKind() == OutlineShape.Kind.BOX) {
-            AxisAlignedBB box = shape.getBox().getOffsetBoundingBox(-cameraX, -cameraY, -cameraZ);
+            AxisAlignedBB box = shape.getBox();
             if (margin > 0.0D) {
-                box = box.expand(margin, margin, margin);
+                box = BoxUtil.expandWithinBlock(box, margin);
             }
+            box = box.getOffsetBoundingBox(-cameraX, -cameraY, -cameraZ);
             if (shape.isFill() && SelectionBoxConfig.showFill && ColorUtil.alpha(innerColour) > 2) {
                 drawFilled(box, innerColour, flow, flowTime, flowSpeed, cameraX, cameraY, cameraZ);
             }

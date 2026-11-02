@@ -24,9 +24,9 @@ public class GtOverlayConfig {
     @Config.RangeFloat(min = 0.1F, max = 7.0F)
     public static float thickness = 2.5F;
 
-    @Config.Comment("Extra margin around the GT overlay box in blocks.")
-    @Config.RangeFloat(min = 0.0F, max = 0.02F)
-    public static float margin = 0.002F;
+    @Config.Comment("Extra margin added to the GT overlay box in blocks (on top of the selection margin when inherited).")
+    @Config.RangeFloat(min = 0.0F, max = 0.25F)
+    public static float margin = 0.0F;
 
     @Config.Comment("Draw the 3x3 interaction grid on the targeted face.")
     public static boolean showGrid = true;
@@ -51,12 +51,15 @@ public class GtOverlayConfig {
     @Config.RangeFloat(min = 0.0F, max = 0.25F)
     public static float gridInset = 0.0F;
 
-    @Config.Comment("Width of each outer cell as a fraction of the face.")
+    @Config.Comment("Width of each outer cell as a fraction of the face. 0.25 matches GT's native 3x3 grid.")
     @Config.RangeFloat(min = 0.05F, max = 0.45F)
-    public static float gridCellSize = 1.0F / 3.0F;
+    public static float gridCellSize = 0.25F;
 
     @Config.Comment("Only accept GT tool clicks inside the rendered grid; clicks outside do nothing.")
     public static boolean strictGridClicks = true;
+
+    @Config.Comment("Log original/mapped GT hit values to latest.log for troubleshooting.")
+    public static boolean debugHitMapping = false;
 
     @Config.Comment("Animate the GT overlay when the targeted block changes.")
     public static boolean smoothTransition = false;
@@ -70,7 +73,7 @@ public class GtOverlayConfig {
         useSelectionStyle = true;
         colour = 0xFF000000;
         thickness = 2.5F;
-        margin = 0.002F;
+        margin = 0.0F;
         showGrid = true;
         gridAllFaces = false;
         showInputFaceX = true;
@@ -78,8 +81,9 @@ public class GtOverlayConfig {
         gridColour = 0xFF000000;
         gridThickness = 2.5F;
         gridInset = 0.0F;
-        gridCellSize = 1.0F / 3.0F;
+        gridCellSize = 0.25F;
         strictGridClicks = true;
+        debugHitMapping = false;
         smoothTransition = false;
         transitionDuration = 0.15F;
     }

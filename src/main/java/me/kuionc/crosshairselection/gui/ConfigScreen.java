@@ -147,8 +147,9 @@ public class ConfigScreen extends GuiScreen implements SliderHost {
                 StatCollector.translateToLocal("crosshairselection.gt_overlay_settings")));
         buttonList.add(new GuiButton(SELECTION_RENDERING_SETTINGS, left + 77, y + 140, 73, 18,
                 StatCollector.translateToLocal("crosshairselection.rendering_settings")));
-        buttonList.add(new OptionSlider(SELECTION_MARGIN, right, y + 140, 150, 18, 0.0F, 0.02F,
-                SelectionBoxConfig.outlineMargin, false, 3, "crosshairselection.outline_margin", this));
+        buttonList.add(new OptionSlider(SELECTION_MARGIN, right, y + 140, 150, 18, 0.0F, 0.25F,
+                SelectionBoxConfig.outlineMargin, false, 3, 0.005F,
+                "crosshairselection.outline_margin", this));
     }
 
     private void initCrosshairButtons() {

@@ -2,12 +2,15 @@ package me.kuionc.crosshairselection.compat;
 
 import me.kuionc.crosshairselection.config.GtOverlayConfig;
 import me.kuionc.crosshairselection.render.GtGridMath;
+import me.kuionc.crosshairselection.render.GtOverlayRenderer;
 import net.minecraft.block.Block;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.Vec3;
 import net.minecraft.world.World;
 import net.minecraftforge.common.util.ForgeDirection;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * Maps a click inside our custom 3x3 GT overlay to the hit vector GT uses for
@@ -16,6 +19,7 @@ import net.minecraftforge.common.util.ForgeDirection;
  */
 public final class GtHitMapper {
 
+    private static final Logger LOGGER = LogManager.getLogger("CrosshairSelection");
     private static final Class<?> META_BASE_ITEM = classOrNull("gregtech.api.items.MetaBaseItem");
     private static final java.lang.reflect.Method MAP_BEHAVIORS = methodOrNull(META_BASE_ITEM,
             "mapEachBehavior", ItemStack.class, java.util.function.Function.class);
@@ -25,15 +29,22 @@ public final class GtHitMapper {
 
     public static boolean map(EntityPlayer player, World world, ItemStack stack, int x, int y, int z,
                               int side, Vec3 hitVec) {
-        if (!GtOverlayConfig.enabled || player == null || world == null || stack == null
+        if (!GtOverlayConfig.enabled || !GtOverlayConfig.showGrid
+                || player == null || world == null || stack == null
                 || stack.getItem() == null || hitVec == null) {
             return true;
         }
-        if (!GtOverlayCompat.isGtTarget(world, x, y, z, world.getBlock(x, y, z))) {
-            return true;
-        }
-        if (!isGridTool(stack)) {
-            return true;
+
+        // The renderer is the authoritative signal: GT only calls its grid overlay for the
+        // wrench/cover tools, and a rendered overlay proves the target at the moment of the
+        // click. The reflection-based checks below remain as a fallback for frames where the
+        // overlay was not rendered (for example immediately after changing the held item).
+        boolean rendered = GtOverlayRenderer.isRenderedTarget(world, x, y, z, side);
+        if (!rendered) {
+            if (!GtOverlayCompat.isGtTarget(world, x, y, z, world.getBlock(x, y, z))
+                    || !isGridTool(stack)) {
+                return true;
+            }
         }
 
         double u = localU(side, hitVec, x, y, z);
@@ -41,10 +52,18 @@ public final class GtHitMapper {
         int[] cell = GtGridMath.cellForHit(u, v, GtOverlayConfig.gridInset,
                 0.0F, GtOverlayConfig.gridCellSize);
         if (cell == null) {
+            if (GtOverlayConfig.debugHitMapping) {
+                LOGGER.info("[CSB] GT hit side={} rendered={} u={} v={} outside grid, strict={}",
+                        side, rendered, u, v, GtOverlayConfig.strictGridClicks);
+            }
             return !GtOverlayConfig.strictGridClicks;
         }
         double[] canonical = GtGridMath.canonicalHit(cell[0], cell[1]);
         setHit(side, hitVec, x, y, z, canonical[0], canonical[1]);
+        if (GtOverlayConfig.debugHitMapping) {
+            LOGGER.info("[CSB] GT hit side={} rendered={} u={} v={} cell={},{} canonical={},{}",
+                    side, rendered, u, v, cell[0], cell[1], canonical[0], canonical[1]);
+        }
         return true;
     }
 
