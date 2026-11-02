@@ -31,6 +31,12 @@ public final class GtOverlayRenderer {
     private static int fromZ;
     private static long transitionStart;
 
+    private static net.minecraft.world.World renderedWorld;
+    private static int renderedX;
+    private static int renderedY;
+    private static int renderedZ;
+    private static int renderedSide;
+
     private GtOverlayRenderer() {
     }
 
@@ -47,6 +53,12 @@ public final class GtOverlayRenderer {
             resetSmooth();
             return false;
         }
+
+        renderedWorld = world;
+        renderedX = x;
+        renderedY = y;
+        renderedZ = z;
+        renderedSide = target.sideHit;
 
         long now = System.currentTimeMillis();
         if (lastWorld != world) {
@@ -89,15 +101,17 @@ public final class GtOverlayRenderer {
         double cameraY = player.prevPosY + (player.posY - player.prevPosY) * partialTicks;
         double cameraZ = player.prevPosZ + (player.posZ - player.prevPosZ) * partialTicks;
 
-        AxisAlignedBB box = SelectionBoxRenderer.getSelectedBox(world, block, x, y, z);
-        if (box == null) {
+        AxisAlignedBB primary = SelectionBoxRenderer.getSelectedBox(world, block, x, y, z);
+        if (primary == null) {
             return false;
         }
+        java.util.List<OutlineShape> shapes = ShapeCollector.collect(world, block, x, y, z, primary);
 
         int boxColour = GtOverlayConfig.useSelectionStyle ? SelectionBoxConfig.colour : GtOverlayConfig.colour;
-        double margin = GtOverlayConfig.useSelectionStyle
-                ? SelectionBoxConfig.outlineMargin : GtOverlayConfig.margin;
-        box = box.expand(margin, margin, margin);
+        double margin = Math.max(0.0D, GtOverlayConfig.margin);
+        if (GtOverlayConfig.useSelectionStyle) {
+            margin += Math.max(0.0D, SelectionBoxConfig.outlineMargin);
+        }
         float boxThickness = GtOverlayConfig.useSelectionStyle
                 ? SelectionBoxConfig.thickness * Math.max(2.5F,
                         Minecraft.getMinecraft().displayWidth / 1920.0F * 2.5F)
@@ -131,11 +145,9 @@ public final class GtOverlayRenderer {
         if (offsetX != 0.0D || offsetY != 0.0D || offsetZ != 0.0D) {
             GL11.glTranslated(offsetX, offsetY, offsetZ);
         }
-        if (flow) {
-            FlowRenderer.drawBox3D(box, cameraX, cameraY, cameraZ, boxColour,
-                    flowTime, flowSpeed, 8, boxThickness);
-        } else {
-            ThickLineRenderer.drawBox3D(box, cameraX, cameraY, cameraZ, boxColour, boxThickness);
+        for (OutlineShape shape : shapes) {
+            drawOverlayShape(shape, cameraX, cameraY, cameraZ, boxColour, boxThickness,
+                    margin, flow, flowTime, flowSpeed);
         }
         if (GtOverlayConfig.showGrid) {
             if (GtOverlayConfig.gridAllFaces) {
@@ -157,10 +169,47 @@ public final class GtOverlayRenderer {
         return true;
     }
 
+    private static void drawOverlayShape(OutlineShape shape, double cameraX, double cameraY, double cameraZ,
+                                          int colour, float thickness, double margin,
+                                          boolean flow, long flowTime, float flowSpeed) {
+        if (shape.getKind() == OutlineShape.Kind.UNION) {
+            UnionOutlineRenderer.draw(shape.getBoxes(), cameraX, cameraY, cameraZ,
+                    colour, thickness, margin, flow, flowTime, flowSpeed);
+            return;
+        }
+        if (shape.getKind() != OutlineShape.Kind.BOX) {
+            return;
+        }
+        AxisAlignedBB box = BoxUtil.expandWithinBlock(shape.getBox(), margin);
+        if (flow) {
+            FlowRenderer.drawBox3D(box, cameraX, cameraY, cameraZ,
+                    colour, flowTime, flowSpeed, 8, thickness);
+        } else {
+            ThickLineRenderer.drawBox3D(box, cameraX, cameraY, cameraZ, colour, thickness);
+        }
+    }
+
     private static void resetSmooth() {
         lastWorld = null;
         hasSelection = false;
         transitionStart = 0L;
+    }
+
+    /**
+     * True when the GT overlay is currently being drawn for this exact block and face. The
+     * renderer is the authority for click remapping: reflection-based tool detection can fail
+     * on some server environments, while a rendered overlay already proves that GT called its
+     * wrench/cover grid for the held item.
+     */
+    public static boolean isRenderedTarget(net.minecraft.world.World world,
+                                           int x, int y, int z, int side) {
+        if (!GtOverlayConfig.showGrid || renderedWorld == null || renderedWorld != world) {
+            return false;
+        }
+        if (x != renderedX || y != renderedY || z != renderedZ) {
+            return false;
+        }
+        return GtOverlayConfig.gridAllFaces || side == renderedSide;
     }
 
     private static void drawGrid(int x, int y, int z, int side, double cameraX, double cameraY, double cameraZ,

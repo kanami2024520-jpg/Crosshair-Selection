@@ -6,7 +6,7 @@ crosshairselection.defaults=默认值
 
 crosshairselection.enabled=启用：%s
 crosshairselection.thickness=粗细：%s
-crosshairselection.outline_margin=外框边距：%s
+crosshairselection.outline_margin=选中框边距：%s
 crosshairselection.blink_alpha=闪烁不透明度：%s
 crosshairselection.blink_speed=闪烁速度：%s
 crosshairselection.rainbow=彩虹色：%s
@@ -93,3 +93,4 @@ crosshairselection.rainbow_texture_size_hint=自动会根据分辨率选择 128/
 crosshairselection.anti_alias=抗锯齿 (MSAA)：%s
 crosshairselection.auto=自动
 crosshairselection.gt_x_style.full_x=全格 X
+crosshairselection.gt_extra_margin=GT 额外边距：%s

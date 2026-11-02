@@ -103,8 +103,10 @@ public final class GtGridMath {
         if (col == 1 && row == 1) {
             return new double[]{0.5D, 0.5D};
         }
-        double u = col == 0 ? 0.166D : col == 2 ? 0.834D : 0.5D;
-        double v = row == 0 ? 0.166D : row == 2 ? 0.834D : 0.5D;
+        // Keep the canonical point far away from GT's outer/middle thresholds. C08 stores the
+        // hit fractions as unsigned bytes in 1/16 steps, so 0.0625 and 0.9375 survive exactly.
+        double u = col == 0 ? 0.0625D : col == 2 ? 0.9375D : 0.5D;
+        double v = row == 0 ? 0.0625D : row == 2 ? 0.9375D : 0.5D;
         return new double[]{u, v};
     }
 

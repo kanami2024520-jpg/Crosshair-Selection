@@ -84,8 +84,9 @@ public class GtOverlayScreen extends GuiScreen implements SliderHost {
 
         buttonList.add(new OptionSlider(BOX_THICKNESS, right, y, 150, 18, 0.1F, 7.0F,
                 GtOverlayConfig.thickness, false, "crosshairselection.thickness", this));
-        buttonList.add(new OptionSlider(BOX_MARGIN, right, y + 20, 150, 18, 0.0F, 0.02F,
-                GtOverlayConfig.margin, false, 3, "crosshairselection.outline_margin", this));
+        buttonList.add(new OptionSlider(BOX_MARGIN, right, y + 20, 150, 18, 0.0F, 0.25F,
+                GtOverlayConfig.margin, false, 3, 0.005F,
+                "crosshairselection.gt_extra_margin", this));
         buttonList.add(new OptionSlider(GRID_THICKNESS, right, y + 40, 150, 18, 0.1F, 7.0F,
                 GtOverlayConfig.gridThickness, false, "crosshairselection.gt_grid_thickness", this));
         buttonList.add(new OptionSlider(GRID_INSET, right, y + 60, 150, 18, 0.0F, 0.25F,
