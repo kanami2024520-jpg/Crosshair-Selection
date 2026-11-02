@@ -9,9 +9,11 @@ Download: [Releases](https://github.com/kanami2024520-jpg/Crosshair-Selection/re
 
 ## Features
 
-- Selection box: RGBA colors, thickness, outline margin, blinking fill, rainbow, linked blocks, hidden-block mode
-- Crosshair: cross, circle, square, vanilla, arrow and triangle shapes; RGBA colors, size, gap,
-  thickness, rotation, outline, center dot and rainbow
+- Selection box: RGBA colors, thickness, outline margin, blinking fill, flowing rainbow, linked blocks, see-through mode, optional smooth transition
+- GT overlay: replaces GT's wrench/cover overlay for machines and pipes, 3x3 grid, configurable outer cell size, input/output X markers with Cross/Arrow/Fill/Full X styles, and grid-accurate clicks
+- Crosshair: cross and vanilla shapes; RGBA colors, size, gap,
+  thickness, rotation, outline, center dot, flowing rainbow and bow/crossbow wind-up
+- Rendering options: per-fragment texture rainbow flow with Auto/128/256/512 texture size, and an anti-alias toggle with feathered thick-line edges
 - Live preview in the config screen
 
 ## Install
@@ -19,7 +21,8 @@ Download: [Releases](https://github.com/kanami2024520-jpg/Crosshair-Selection/re
 Put the jar in `mods`. Requires Forge 10.13.4.1614, GTNHLib and UniMixins. Tested on GTNH
 2.9.0-RC-2.
 
-Settings are under **Mods → Crosshair-Selection → Config**. There is no keybind or command.
+Settings are under **Mods → Crosshair-Selection → Config**, or run `/crosshairselection`
+(alias `/csb`). There is no keybind.
 
 ## Build
 

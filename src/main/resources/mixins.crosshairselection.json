@@ -6,7 +6,9 @@
   "refmap": "mixins.crosshairselection.refmap.json",
   "client": [
     "MixinGuiIngameForge",
-    "MixinRenderGlobal"
+    "MixinRenderGlobal",
+    "MixinGtBlockOverlayRenderer",
+    "MixinPlayerControllerMP"
   ],
   "injectors": {
     "defaultRequire": 1

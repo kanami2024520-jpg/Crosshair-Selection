@@ -1,8 +1,9 @@
 /*
  * GTNH-only build. GTNHLib provides the config system and Tessellator bridge.
- * GT/AE/EnderIO/FMP shapes are read through reflection, so no compile dependencies
- * on those mods are required.
+ * GT5U is compile-only so the Mixin annotation processor can resolve the GT overlay target;
+ * AE2/EnderIO/FMP shapes are read through reflection.
  */
 dependencies {
     devOnlyNonPublishable("com.github.GTNewHorizons:GTNHLib:0.11.52:dev")
+    compileOnly("com.github.GTNewHorizons:GT5-Unofficial:5.09.54.230:dev") { transitive = false }
 }
