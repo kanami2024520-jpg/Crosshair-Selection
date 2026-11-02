@@ -1,7 +1,5 @@
 package me.kuionc.crosshairselection.command;
 
-import me.kuionc.crosshairselection.gui.ConfigScreen;
-import net.minecraft.client.Minecraft;
 import net.minecraft.command.CommandBase;
 import net.minecraft.command.ICommandSender;
 
@@ -40,6 +38,6 @@ public class CommandOpenConfig extends CommandBase {
 
     @Override
     public void processCommand(ICommandSender sender, String[] args) {
-        Minecraft.getMinecraft().displayGuiScreen(new ConfigScreen(null));
+        ConfigScreenOpener.request();
     }
 }
