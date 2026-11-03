@@ -11,6 +11,7 @@ Download: [Releases](https://github.com/kanami2024520-jpg/Crosshair-Selection/re
 
 - Selection box: RGBA colors, thickness, outline margin, blinking fill, flowing rainbow, linked blocks, see-through mode, optional smooth transition
 - GT overlay: replaces GT's wrench/cover overlay for machines and pipes, 3x3 grid, configurable outer cell size, input/output X markers with Cross/Arrow/Fill/Full X styles, and grid-accurate clicks
+- Part-aware selection: GT cover plates, GT pipe/cable targeting, Forge Multipart/ProjectRed wires, Forge Microblocks, AE2 cables/facades, EnderIO conduits and Translocator attachments
 - Crosshair: cross and vanilla shapes; RGBA colors, size, gap,
   thickness, rotation, outline, center dot, flowing rainbow and bow/crossbow wind-up
 - Rendering options: per-fragment texture rainbow flow with Auto/128/256/512 texture size, and an anti-alias toggle with feathered thick-line edges

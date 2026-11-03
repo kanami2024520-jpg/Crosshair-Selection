@@ -42,7 +42,8 @@ public final class GtPipeShapeProvider implements ShapeProvider {
     }
 
     @Override
-    public boolean collect(World world, int x, int y, int z, Block block, List<OutlineShape> out) {
+    public boolean collect(World world, int x, int y, int z, Block block, net.minecraft.util.MovingObjectPosition target,
+                              List<OutlineShape> out) {
         if (PIPE_INTERFACE == null || GET_THICKNESS == null || GET_CONNECTIONS == null) {
             return false;
         }
@@ -52,6 +53,14 @@ public final class GtPipeShapeProvider implements ShapeProvider {
         }
         out.add(OutlineShape.union(boxes));
         return true;
+    }
+
+    public static List<AxisAlignedBB> getBoxes(World world, int x, int y, int z) {
+        List<AxisAlignedBB> boxes = new ArrayList<AxisAlignedBB>();
+        if (collectTileBoxes(world, x, y, z, boxes) < 0) {
+            boxes.clear();
+        }
+        return boxes;
     }
 
     /**

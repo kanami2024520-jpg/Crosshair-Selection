@@ -83,7 +83,7 @@ public final class SelectionBoxRenderer {
         if (primary == null) {
             return false;
         }
-        List<OutlineShape> shapes = ShapeCollector.collect(world, block, x, y, z, primary);
+        List<OutlineShape> shapes = ShapeCollector.collect(world, block, x, y, z, primary, hitResult);
 
         double cameraX = player.prevPosX + (player.posX - player.prevPosX) * partialTicks;
         double cameraY = player.prevPosY + (player.posY - player.prevPosY) * partialTicks;

@@ -31,6 +31,9 @@ public class GtOverlayConfig {
     @Config.Comment("Draw the 3x3 interaction grid on the targeted face.")
     public static boolean showGrid = true;
 
+    @Config.Comment("Draw the outer block/pipe outline together with the 3x3 grid.")
+    public static boolean showBlockOutline = true;
+
     @Config.Comment("Draw the 3x3 grid on all six faces.")
     public static boolean gridAllFaces = false;
 
@@ -75,6 +78,7 @@ public class GtOverlayConfig {
         thickness = 2.5F;
         margin = 0.0F;
         showGrid = true;
+        showBlockOutline = true;
         gridAllFaces = false;
         showInputFaceX = true;
         xStyle = GtXStyle.CROSS;
