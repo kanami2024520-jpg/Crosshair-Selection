@@ -46,7 +46,8 @@ public class ConfigScreen extends GuiScreen implements SliderHost {
     private static final int SELECTION_SMOOTH = 12;
     private static final int SELECTION_TRANSITION = 13;
     private static final int SELECTION_GT_SETTINGS = 14;
-    private static final int SELECTION_RENDERING_SETTINGS = 15;
+    private static final int SELECTION_TEXTURE_SIZE = 15;
+    private static final int SELECTION_ANTI_ALIAS = 40;
 
 
     private static final int CROSSHAIR_ENABLED = 20;
@@ -143,13 +144,15 @@ public class ConfigScreen extends GuiScreen implements SliderHost {
                 SelectionBoxConfig.smoothTransition));
         buttonList.add(new OptionSlider(SELECTION_TRANSITION, right, y + 100, 150, 18, 0.05F, 0.5F,
                 SelectionBoxConfig.transitionDuration, false, 2, "crosshairselection.transition_duration", this));
-        buttonList.add(new GuiButton(SELECTION_GT_SETTINGS, left, y + 140, 73, 18,
+        buttonList.add(new GuiButton(SELECTION_GT_SETTINGS, left, y + 140, 150, 18,
                 StatCollector.translateToLocal("crosshairselection.gt_overlay_settings")));
-        buttonList.add(new GuiButton(SELECTION_RENDERING_SETTINGS, left + 77, y + 140, 73, 18,
-                StatCollector.translateToLocal("crosshairselection.rendering_settings")));
         buttonList.add(new OptionSlider(SELECTION_MARGIN, right, y + 140, 150, 18, 0.0F, 0.25F,
                 SelectionBoxConfig.outlineMargin, false, 3, 0.005F,
                 "crosshairselection.outline_margin", this));
+        buttonList.add(new GuiButton(SELECTION_TEXTURE_SIZE, left, y + 160, 150, 18,
+                textureSizeLabel()));
+        buttonList.add(toggle(SELECTION_ANTI_ALIAS, right, y + 160, 150,
+                "crosshairselection.anti_alias", SelectionBoxConfig.antiAlias));
     }
 
     private void initCrosshairButtons() {
@@ -410,9 +413,14 @@ public class ConfigScreen extends GuiScreen implements SliderHost {
                 childOpen = true;
                 mc.displayGuiScreen(new GtOverlayScreen(this));
                 break;
-            case SELECTION_RENDERING_SETTINGS:
-                childOpen = true;
-                mc.displayGuiScreen(new RenderingScreen(this));
+            case SELECTION_TEXTURE_SIZE:
+                cycleTextureSize();
+                button.displayString = textureSizeLabel();
+                break;
+            case SELECTION_ANTI_ALIAS:
+                SelectionBoxConfig.antiAlias = !SelectionBoxConfig.antiAlias;
+                button.displayString = StatCollector.translateToLocalFormatted(
+                        "crosshairselection.anti_alias", onOff(SelectionBoxConfig.antiAlias));
                 break;
             default:
                 break;
@@ -435,6 +443,29 @@ public class ConfigScreen extends GuiScreen implements SliderHost {
                 return;
             }
         }
+    }
+
+    private static final int[] TEXTURE_SIZES = {0, 128, 256, 512};
+
+    private static String textureSizeLabel() {
+        int size = SelectionBoxConfig.rainbowTextureSize;
+        String value = size <= 0
+                ? StatCollector.translateToLocal("crosshairselection.auto")
+                : Integer.toString(size);
+        return StatCollector.translateToLocalFormatted(
+                "crosshairselection.rainbow_texture_size", value);
+    }
+
+    private static void cycleTextureSize() {
+        int current = SelectionBoxConfig.rainbowTextureSize;
+        int index = 0;
+        for (int i = 0; i < TEXTURE_SIZES.length; i++) {
+            if (TEXTURE_SIZES[i] == current) {
+                index = i;
+                break;
+            }
+        }
+        SelectionBoxConfig.rainbowTextureSize = TEXTURE_SIZES[(index + 1) % TEXTURE_SIZES.length];
     }
 
     @Override
@@ -730,6 +761,8 @@ public class ConfigScreen extends GuiScreen implements SliderHost {
         private final boolean selectionRainbow;
         private final boolean selectionRainbowFlow;
         private final int selectionRainbowSpeed;
+        private final int selectionRainbowTextureSize;
+        private final boolean selectionAntiAlias;
         private final boolean selectionLink;
         private final boolean selectionHidden;
         private final boolean selectionSmooth;
@@ -769,6 +802,8 @@ public class ConfigScreen extends GuiScreen implements SliderHost {
             selectionRainbow = SelectionBoxConfig.rainbow;
             selectionRainbowFlow = SelectionBoxConfig.rainbowFlow;
             selectionRainbowSpeed = SelectionBoxConfig.rainbowSpeed;
+            selectionRainbowTextureSize = SelectionBoxConfig.rainbowTextureSize;
+            selectionAntiAlias = SelectionBoxConfig.antiAlias;
             selectionLink = SelectionBoxConfig.linkBlocks;
             selectionHidden = SelectionBoxConfig.showHidden;
             selectionSmooth = SelectionBoxConfig.smoothTransition;
@@ -809,6 +844,8 @@ public class ConfigScreen extends GuiScreen implements SliderHost {
             SelectionBoxConfig.rainbow = selectionRainbow;
             SelectionBoxConfig.rainbowFlow = selectionRainbowFlow;
             SelectionBoxConfig.rainbowSpeed = selectionRainbowSpeed;
+            SelectionBoxConfig.rainbowTextureSize = selectionRainbowTextureSize;
+            SelectionBoxConfig.antiAlias = selectionAntiAlias;
             SelectionBoxConfig.linkBlocks = selectionLink;
             SelectionBoxConfig.showHidden = selectionHidden;
             SelectionBoxConfig.smoothTransition = selectionSmooth;

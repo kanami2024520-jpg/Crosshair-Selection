@@ -1,6 +1,7 @@
 package me.kuionc.crosshairselection.render;
 
 import net.minecraft.block.Block;
+import net.minecraft.util.MovingObjectPosition;
 import net.minecraft.world.World;
 
 import java.util.List;
@@ -11,5 +12,6 @@ import java.util.List;
  */
 public interface ShapeProvider {
 
-    boolean collect(World world, int x, int y, int z, Block block, List<OutlineShape> out);
+    boolean collect(World world, int x, int y, int z, Block block,
+                    MovingObjectPosition target, List<OutlineShape> out);
 }

@@ -105,7 +105,7 @@ public final class GtOverlayRenderer {
         if (primary == null) {
             return false;
         }
-        java.util.List<OutlineShape> shapes = ShapeCollector.collect(world, block, x, y, z, primary);
+        java.util.List<OutlineShape> shapes = ShapeCollector.collect(world, block, x, y, z, primary, target);
 
         int boxColour = GtOverlayConfig.useSelectionStyle ? SelectionBoxConfig.colour : GtOverlayConfig.colour;
         double margin = Math.max(0.0D, GtOverlayConfig.margin);
@@ -145,9 +145,11 @@ public final class GtOverlayRenderer {
         if (offsetX != 0.0D || offsetY != 0.0D || offsetZ != 0.0D) {
             GL11.glTranslated(offsetX, offsetY, offsetZ);
         }
-        for (OutlineShape shape : shapes) {
-            drawOverlayShape(shape, cameraX, cameraY, cameraZ, boxColour, boxThickness,
-                    margin, flow, flowTime, flowSpeed);
+        if (GtOverlayConfig.showBlockOutline) {
+            for (OutlineShape shape : shapes) {
+                drawOverlayShape(shape, cameraX, cameraY, cameraZ, boxColour, boxThickness,
+                        margin, flow, flowTime, flowSpeed);
+            }
         }
         if (GtOverlayConfig.showGrid) {
             if (GtOverlayConfig.gridAllFaces) {

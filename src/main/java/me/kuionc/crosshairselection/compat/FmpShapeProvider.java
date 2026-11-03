@@ -5,13 +5,18 @@ import me.kuionc.crosshairselection.render.ShapeProvider;
 import net.minecraft.block.Block;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.AxisAlignedBB;
+import net.minecraft.util.MovingObjectPosition;
 import net.minecraft.world.World;
 
 import java.lang.reflect.Method;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 /**
- * Forge Multipart: every part knows its render/collision bounds.
+ * Forge Multipart: every part knows its render/collision/occlusion bounds. The hit data selects
+ * the part under the crosshair; occlusion boxes calibrate the slightly larger collision boxes
+ * back to the visible wire body.
  */
 public final class FmpShapeProvider implements ShapeProvider {
 
@@ -19,7 +24,8 @@ public final class FmpShapeProvider implements ShapeProvider {
     private static final Method PART_LIST = methodOrNull(MULTIPART_TILE, "jPartList");
 
     @Override
-    public boolean collect(World world, int x, int y, int z, Block block, List<OutlineShape> out) {
+    public boolean collect(World world, int x, int y, int z, Block block,
+                           MovingObjectPosition target, List<OutlineShape> out) {
         if (MULTIPART_TILE == null || PART_LIST == null) {
             return false;
         }
@@ -32,19 +38,30 @@ public final class FmpShapeProvider implements ShapeProvider {
             if (parts == null || parts.isEmpty()) {
                 return false;
             }
-            boolean added = false;
-            for (Object part : parts) {
-                added |= addPart(part, x, y, z, out);
+            int partIndex = HitData.partIndex(target);
+            Iterable<?> selectedParts = parts;
+            if (partIndex >= 0 && partIndex < parts.size()) {
+                selectedParts = Collections.singletonList(parts.get(partIndex));
             }
-            return added;
+
+            List<AxisAlignedBB> allBoxes = new ArrayList<AxisAlignedBB>();
+            boolean added = false;
+            for (Object part : selectedParts) {
+                added |= collectPart(part, x, y, z, allBoxes);
+            }
+            if (!added || allBoxes.isEmpty()) {
+                return false;
+            }
+            out.add(OutlineShape.union(allBoxes));
+            return true;
         } catch (Throwable ignored) {
             return false;
         }
     }
 
-    private static boolean addPart(Object part, int x, int y, int z, List<OutlineShape> out) {
+    private static boolean collectPart(Object part, int x, int y, int z, List<AxisAlignedBB> out) {
         AxisAlignedBB render = renderBounds(part);
-        List<AxisAlignedBB> collisions = new java.util.ArrayList<AxisAlignedBB>();
+        List<AxisAlignedBB> collisions = new ArrayList<AxisAlignedBB>();
         Iterable<?> collisionBoxes = collisionBoxes(part);
         if (collisionBoxes != null) {
             for (Object cuboid : collisionBoxes) {
@@ -55,31 +72,84 @@ public final class FmpShapeProvider implements ShapeProvider {
             }
         }
 
-        List<AxisAlignedBB> partBoxes = new java.util.ArrayList<AxisAlignedBB>();
+        List<AxisAlignedBB> partBoxes = new ArrayList<AxisAlignedBB>();
         // Wires/cables return their real sub-boxes from getCollisionBoxes(), while the
         // generic getRenderBounds() default is the full block. Prefer the precise boxes.
         if (render != null && !isFull(render)) {
-            partBoxes.add(offset(render, x, y, z));
+            partBoxes.add(render);
         } else if (!collisions.isEmpty()) {
-            for (AxisAlignedBB box : collisions) {
-                partBoxes.add(offset(box, x, y, z));
-            }
+            partBoxes.addAll(collisions);
         } else if (render != null) {
-            partBoxes.add(offset(render, x, y, z));
+            partBoxes.add(render);
         } else {
             AxisAlignedBB bounds = genericBounds(part);
             if (bounds != null) {
-                partBoxes.add(offset(bounds, x, y, z));
+                partBoxes.add(bounds);
             }
         }
 
         if (partBoxes.isEmpty()) {
             return false;
         }
-        // Union inside one part removes internal crossing lines (ProjectRed four-way wires)
-        // while keeping different wire parts separate.
-        out.add(OutlineShape.union(partBoxes));
+
+        // ProjectRed's collision boxes are intentionally a little larger than the wire
+        // model for easier clicking. Calibrate them against the occlusion box so the
+        // outline hugs the visible wire instead of drawing a ring around it.
+        partBoxes = calibrate(partBoxes, occlusionBoxes(part));
+        for (AxisAlignedBB box : partBoxes) {
+            out.add(offset(box, x, y, z));
+        }
         return true;
+    }
+
+    private static List<AxisAlignedBB> calibrate(List<AxisAlignedBB> boxes,
+                                                  List<AxisAlignedBB> occlusion) {
+        if (boxes.isEmpty() || occlusion.isEmpty()) {
+            return boxes;
+        }
+        AxisAlignedBB occ = occlusion.get(0);
+        AxisAlignedBB best = null;
+        double bestVolume = 0.0D;
+        for (AxisAlignedBB box : boxes) {
+            double overlapX = Math.min(box.maxX, occ.maxX) - Math.max(box.minX, occ.minX);
+            double overlapY = Math.min(box.maxY, occ.maxY) - Math.max(box.minY, occ.minY);
+            double overlapZ = Math.min(box.maxZ, occ.maxZ) - Math.max(box.minZ, occ.minZ);
+            if (overlapX <= 0.0D || overlapY <= 0.0D || overlapZ <= 0.0D) {
+                continue;
+            }
+            double volume = overlapX * overlapY * overlapZ;
+            if (volume > bestVolume) {
+                bestVolume = volume;
+                best = box;
+            }
+        }
+        if (best == null) {
+            return boxes;
+        }
+
+        double insetMinX = Math.max(0.0D, occ.minX - best.minX);
+        double insetMinY = Math.max(0.0D, occ.minY - best.minY);
+        double insetMinZ = Math.max(0.0D, occ.minZ - best.minZ);
+        double insetMaxX = Math.max(0.0D, best.maxX - occ.maxX);
+        double insetMaxY = Math.max(0.0D, best.maxY - occ.maxY);
+        double insetMaxZ = Math.max(0.0D, best.maxZ - occ.maxZ);
+        if (insetMinX + insetMinY + insetMinZ + insetMaxX + insetMaxY + insetMaxZ < 1.0E-5D) {
+            return boxes;
+        }
+
+        List<AxisAlignedBB> result = new ArrayList<AxisAlignedBB>(boxes.size());
+        for (AxisAlignedBB box : boxes) {
+            double minX = box.minX + insetMinX;
+            double minY = box.minY + insetMinY;
+            double minZ = box.minZ + insetMinZ;
+            double maxX = box.maxX - insetMaxX;
+            double maxY = box.maxY - insetMaxY;
+            double maxZ = box.maxZ - insetMaxZ;
+            if (minX < maxX && minY < maxY && minZ < maxZ) {
+                result.add(AxisAlignedBB.getBoundingBox(minX, minY, minZ, maxX, maxY, maxZ));
+            }
+        }
+        return result.isEmpty() ? boxes : result;
     }
 
     private static boolean isFull(AxisAlignedBB box) {
@@ -115,6 +185,32 @@ public final class FmpShapeProvider implements ShapeProvider {
         } catch (Throwable ignored) {
             return null;
         }
+    }
+
+    private static List<AxisAlignedBB> occlusionBoxes(Object part) {
+        List<AxisAlignedBB> boxes = new ArrayList<AxisAlignedBB>();
+        try {
+            Method method = part.getClass().getMethod("getOcclusionBoxes");
+            Object value = method.invoke(part);
+            if (value instanceof Iterable) {
+                for (Object cuboid : (Iterable<?>) value) {
+                    AxisAlignedBB box = toAabb(cuboid);
+                    if (box != null && !isFull(box)) {
+                        boxes.add(box);
+                    }
+                }
+            } else if (value instanceof Object[]) {
+                for (Object cuboid : (Object[]) value) {
+                    AxisAlignedBB box = toAabb(cuboid);
+                    if (box != null && !isFull(box)) {
+                        boxes.add(box);
+                    }
+                }
+            }
+        } catch (Throwable ignored) {
+            // Occlusion boxes are optional.
+        }
+        return boxes;
     }
 
     private static AxisAlignedBB toAabb(Object cuboid) {

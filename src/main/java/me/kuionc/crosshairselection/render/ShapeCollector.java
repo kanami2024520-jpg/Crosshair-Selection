@@ -4,10 +4,14 @@ import me.kuionc.crosshairselection.CrosshairSelection;
 import me.kuionc.crosshairselection.compat.Ae2ShapeProvider;
 import me.kuionc.crosshairselection.compat.EnderIoShapeProvider;
 import me.kuionc.crosshairselection.compat.FmpShapeProvider;
+import me.kuionc.crosshairselection.compat.GtCoverShapeProvider;
 import me.kuionc.crosshairselection.compat.GtPipeShapeProvider;
+import me.kuionc.crosshairselection.compat.ProjectRedWireShapeProvider;
+import me.kuionc.crosshairselection.compat.TranslocatorShapeProvider;
 import me.kuionc.crosshairselection.config.SelectionBoxConfig;
 import net.minecraft.block.Block;
 import net.minecraft.util.AxisAlignedBB;
+import net.minecraft.util.MovingObjectPosition;
 import net.minecraft.world.World;
 
 import java.util.ArrayList;
@@ -19,9 +23,12 @@ import java.util.List;
 public final class ShapeCollector {
 
     private static final ShapeProvider[] PROVIDERS = {
+            new GtCoverShapeProvider(),
             new GtPipeShapeProvider(),
+            new TranslocatorShapeProvider(),
             new Ae2ShapeProvider(),
             new EnderIoShapeProvider(),
+            new ProjectRedWireShapeProvider(),
             new FmpShapeProvider()
     };
 
@@ -29,11 +36,11 @@ public final class ShapeCollector {
     }
 
     public static List<OutlineShape> collect(World world, Block block, int x, int y, int z,
-                                             AxisAlignedBB primary) {
+                                             AxisAlignedBB primary, MovingObjectPosition target) {
         List<OutlineShape> shapes = new ArrayList<OutlineShape>();
         for (ShapeProvider provider : PROVIDERS) {
             try {
-                if (provider.collect(world, x, y, z, block, shapes) && !shapes.isEmpty()) {
+                if (provider.collect(world, x, y, z, block, target, shapes) && !shapes.isEmpty()) {
                     return shapes;
                 }
             } catch (Throwable throwable) {

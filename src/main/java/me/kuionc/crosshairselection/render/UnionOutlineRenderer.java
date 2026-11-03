@@ -74,6 +74,7 @@ public final class UnionOutlineRenderer {
         }
 
         Set<Long> cells = new HashSet<Long>();
+        Set<Long> edgeKeys = new HashSet<Long>();
         List<int[]> cellList = new ArrayList<int[]>();
         for (int ix = 0; ix < nx; ix++) {
             double cx = (xs[ix] + xs[ix + 1]) * 0.5D;
@@ -104,7 +105,7 @@ public final class UnionOutlineRenderer {
                 }
                 int tangentA = TANGENTS[face][0];
                 int tangentB = TANGENTS[face][1];
-                addFlowFaceEdges(cells, xs, ys, zs, ix, iy, iz, nX, nY, nZ,
+                addFlowFaceEdges(cells, edgeKeys, xs, ys, zs, ix, iy, iz, nX, nY, nZ,
                         tangentA, tangentB, colour, alpha, rainbowFlow, thickness,
                         flowTime, flowSpeed, cameraX, cameraY, cameraZ);
             }
@@ -126,11 +127,18 @@ public final class UnionOutlineRenderer {
             }
         }
         double[] result = new double[values.size()];
-        int index = 0;
+        int count = 0;
         for (Double value : values) {
-            result[index++] = value;
+            if (count == 0 || Math.abs(value - result[count - 1]) > 1.0E-4D) {
+                result[count++] = value;
+            }
         }
-        return result;
+        if (count == result.length) {
+            return result;
+        }
+        double[] trimmed = new double[count];
+        System.arraycopy(result, 0, trimmed, 0, count);
+        return trimmed;
     }
 
     private static boolean isInside(List<AxisAlignedBB> boxes, double x, double y, double z) {
@@ -144,21 +152,23 @@ public final class UnionOutlineRenderer {
         return false;
     }
 
-    private static void addFlowFaceEdges(Set<Long> cells, double[] xs, double[] ys, double[] zs,
+    private static void addFlowFaceEdges(Set<Long> cells, Set<Long> edgeKeys,
+                                         double[] xs, double[] ys, double[] zs,
                                          int ix, int iy, int iz, int nX, int nY, int nZ,
                                          int tangentA, int tangentB, int colour, int alpha,
                                          boolean rainbowFlow, float thickness,
                                          long flowTime, float flowSpeed,
                                          double cameraX, double cameraY, double cameraZ) {
-        addFlowEdge(cells, xs, ys, zs, ix, iy, iz, nX, nY, nZ,
+        addFlowEdge(cells, edgeKeys, xs, ys, zs, ix, iy, iz, nX, nY, nZ,
                 tangentA, tangentB, colour, alpha, rainbowFlow, thickness, flowTime, flowSpeed,
                 cameraX, cameraY, cameraZ);
-        addFlowEdge(cells, xs, ys, zs, ix, iy, iz, nX, nY, nZ,
+        addFlowEdge(cells, edgeKeys, xs, ys, zs, ix, iy, iz, nX, nY, nZ,
                 tangentB, tangentA, colour, alpha, rainbowFlow, thickness, flowTime, flowSpeed,
                 cameraX, cameraY, cameraZ);
     }
 
-    private static void addFlowEdge(Set<Long> cells, double[] xs, double[] ys, double[] zs,
+    private static void addFlowEdge(Set<Long> cells, Set<Long> edgeKeys,
+                                    double[] xs, double[] ys, double[] zs,
                                     int ix, int iy, int iz, int nX, int nY, int nZ,
                                     int alongAxis, int sideAxis, int colour, int alpha,
                                     boolean rainbowFlow, float thickness,
@@ -171,6 +181,34 @@ public final class UnionOutlineRenderer {
             boolean coplanarNeighbour = cells.contains(pack(ix + sx, iy + sy, iz + sz))
                     && !cells.contains(pack(ix + sx + nX, iy + sy + nY, iz + sz + nZ));
             if (coplanarNeighbour) {
+                continue;
+            }
+
+            int keyX = ix;
+            int keyY = iy;
+            int keyZ = iz;
+            if (nX != 0) {
+                keyX = ix + (nX > 0 ? 1 : 0);
+            } else if (nY != 0) {
+                keyY = iy + (nY > 0 ? 1 : 0);
+            } else {
+                keyZ = iz + (nZ > 0 ? 1 : 0);
+            }
+            if (sideAxis == 0) {
+                keyX = ix + (side > 0 ? 1 : 0);
+            } else if (sideAxis == 1) {
+                keyY = iy + (side > 0 ? 1 : 0);
+            } else {
+                keyZ = iz + (side > 0 ? 1 : 0);
+            }
+            if (alongAxis == 0) {
+                keyX = ix;
+            } else if (alongAxis == 1) {
+                keyY = iy;
+            } else {
+                keyZ = iz;
+            }
+            if (!edgeKeys.add(packEdge(alongAxis, keyX, keyY, keyZ))) {
                 continue;
             }
 
@@ -243,5 +281,12 @@ public final class UnionOutlineRenderer {
         return ((long) (x + 8192) & 0x3FFF) << 28
                 | ((long) (y + 8192) & 0x3FFF) << 14
                 | ((long) (z + 8192) & 0x3FFF);
+    }
+
+    private static long packEdge(int axis, int x, int y, int z) {
+        return ((long) (x + 8192) & 0x3FFF) << 44
+                | ((long) (y + 8192) & 0x3FFF) << 30
+                | ((long) (z + 8192) & 0x3FFF) << 16
+                | (axis & 0x3L);
     }
 }

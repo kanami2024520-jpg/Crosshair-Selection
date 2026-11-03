@@ -5,6 +5,7 @@ import me.kuionc.crosshairselection.render.ShapeProvider;
 import net.minecraft.block.Block;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.AxisAlignedBB;
+import net.minecraft.util.MovingObjectPosition;
 import net.minecraft.world.World;
 
 import java.lang.reflect.Field;
@@ -16,19 +17,22 @@ import java.util.Map;
 
 /**
  * EnderIO conduit bundles expose their geometry as {@code List<CollidableComponent>}; each
- * component has a public {@code bound} BoundingBox. The list also contains non-physical helpers
- * (ColorController and ConduitConnectorType.INTERNAL), which are ignored here.
+ * component has a public {@code bound} BoundingBox. A block can contain several conduit types
+ * plus connector faces, so selection picks the type whose component contains the crosshair hit
+ * instead of drawing every group.
  */
 public final class EnderIoShapeProvider implements ShapeProvider {
 
     private static final Class<?> BUNDLE_INTERFACE = classOrNull("crazypants.enderio.conduit.IConduitBundle");
     private static final Method GET_COMPONENTS = methodOrNull(BUNDLE_INTERFACE, "getCollidableComponents");
+    private static final Method GET_CONNECTORS = methodOrNull(BUNDLE_INTERFACE, "getConnectors");
     private static Field boundField;
     private static Field dataField;
     private static Field conduitTypeField;
 
     @Override
-    public boolean collect(World world, int x, int y, int z, Block block, List<OutlineShape> out) {
+    public boolean collect(World world, int x, int y, int z, Block block,
+                           MovingObjectPosition target, List<OutlineShape> out) {
         if (BUNDLE_INTERFACE == null || GET_COMPONENTS == null) {
             return false;
         }
@@ -42,7 +46,7 @@ public final class EnderIoShapeProvider implements ShapeProvider {
                 return false;
             }
 
-            Map<Class<?>, List<AxisAlignedBB>> groups = new LinkedHashMap<Class<?>, List<AxisAlignedBB>>();
+            List<Component> physical = new ArrayList<Component>();
             for (Object component : components) {
                 if (boundField == null) {
                     boundField = component.getClass().getField("bound");
@@ -69,16 +73,38 @@ public final class EnderIoShapeProvider implements ShapeProvider {
                 if (maxX - minX <= 0.0001F || maxY - minY <= 0.0001F || maxZ - minZ <= 0.0001F) {
                     continue;
                 }
+                physical.add(new Component((Class<?>) conduitTypeField.get(component),
+                        AxisAlignedBB.getBoundingBox(minX, minY, minZ, maxX, maxY, maxZ), component));
+            }
+            if (physical.isEmpty()) {
+                return false;
+            }
 
-                Class<?> conduitType = (Class<?>) conduitTypeField.get(component);
-                List<AxisAlignedBB> boxes = groups.get(conduitType);
+            Component hit = hitComponent(physical, target, x, y, z);
+            if (hit != null && isConnector(hit.source, tile)) {
+                out.add(OutlineShape.box(AxisAlignedBB.getBoundingBox(
+                        hit.box.minX + x, hit.box.minY + y, hit.box.minZ + z,
+                        hit.box.maxX + x, hit.box.maxY + y, hit.box.maxZ + z), false));
+                return true;
+            }
+
+            Class<?> hitType = hit != null ? hit.type : null;
+            Map<Class<?>, List<AxisAlignedBB>> groups = new LinkedHashMap<Class<?>, List<AxisAlignedBB>>();
+            for (Component component : physical) {
+                if (hitType != null && component.type != hitType) {
+                    continue;
+                }
+                List<AxisAlignedBB> boxes = groups.get(component.type);
                 if (boxes == null) {
                     boxes = new ArrayList<AxisAlignedBB>();
-                    groups.put(conduitType, boxes);
+                    groups.put(component.type, boxes);
                 }
                 boxes.add(AxisAlignedBB.getBoundingBox(
-                        x + minX, y + minY, z + minZ,
-                        x + maxX, y + maxY, z + maxZ));
+                        component.box.minX + x, component.box.minY + y, component.box.minZ + z,
+                        component.box.maxX + x, component.box.maxY + y, component.box.maxZ + z));
+            }
+            if (groups.isEmpty()) {
+                return false;
             }
 
             boolean added = false;
@@ -99,6 +125,51 @@ public final class EnderIoShapeProvider implements ShapeProvider {
         }
     }
 
+    private static boolean isConnector(Object source, TileEntity tile) {
+        if (GET_CONNECTORS == null || source == null) {
+            return false;
+        }
+        try {
+            Object value = GET_CONNECTORS.invoke(tile);
+            if (!(value instanceof Iterable)) {
+                return false;
+            }
+            for (Object connector : (Iterable<?>) value) {
+                if (connector == source || (connector != null && connector.equals(source))) {
+                    return true;
+                }
+            }
+        } catch (Throwable ignored) {
+            // Treat unknown components as non-connectors.
+        }
+        return false;
+    }
+
+    private static Component hitComponent(List<Component> components, MovingObjectPosition target,
+                                          int x, int y, int z) {
+        if (target == null || target.hitVec == null) {
+            return null;
+        }
+        double hitX = target.hitVec.xCoord - x;
+        double hitY = target.hitVec.yCoord - y;
+        double hitZ = target.hitVec.zCoord - z;
+        Component best = null;
+        double bestVolume = Double.MAX_VALUE;
+        for (Component component : components) {
+            AxisAlignedBB box = component.box;
+            if (hitX >= box.minX - 0.002D && hitX <= box.maxX + 0.002D
+                    && hitY >= box.minY - 0.002D && hitY <= box.maxY + 0.002D
+                    && hitZ >= box.minZ - 0.002D && hitZ <= box.maxZ + 0.002D) {
+                double volume = (box.maxX - box.minX) * (box.maxY - box.minY) * (box.maxZ - box.minZ);
+                if (volume < bestVolume) {
+                    bestVolume = volume;
+                    best = component;
+                }
+            }
+        }
+        return best;
+    }
+
     private static boolean isNonPhysical(Object data) {
         if (data == null) {
             return false;
@@ -107,6 +178,18 @@ public final class EnderIoShapeProvider implements ShapeProvider {
             return true;
         }
         return "INTERNAL".equals(data.toString());
+    }
+
+    private static final class Component {
+        private final Class<?> type;
+        private final AxisAlignedBB box;
+        private final Object source;
+
+        private Component(Class<?> type, AxisAlignedBB box, Object source) {
+            this.type = type;
+            this.box = box;
+            this.source = source;
+        }
     }
 
     private static Class<?> classOrNull(String name) {

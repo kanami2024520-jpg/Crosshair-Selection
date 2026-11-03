@@ -32,6 +32,7 @@ public class GtOverlayScreen extends GuiScreen implements SliderHost {
     private static final int STRICT_GRID = 16;
     private static final int GRID_CELL_SIZE = 17;
     private static final int X_STYLE = 18;
+    private static final int SHOW_BLOCK_OUTLINE = 19;
 
     private static final int SAVE = 20;
     private static final int CANCEL = 21;
@@ -64,7 +65,10 @@ public class GtOverlayScreen extends GuiScreen implements SliderHost {
         buttonList.add(toggle(BOX_ENABLED, left, y, "crosshairselection.enabled", GtOverlayConfig.enabled));
         buttonList.add(toggle(USE_SELECTION_STYLE, left, y + 20, "crosshairselection.gt_use_selection_style",
                 GtOverlayConfig.useSelectionStyle));
-        buttonList.add(toggle(SHOW_GRID, left, y + 40, "crosshairselection.gt_show_grid", GtOverlayConfig.showGrid));
+        buttonList.add(toggle(SHOW_GRID, left, y + 40, 73,
+                "crosshairselection.gt_show_grid", GtOverlayConfig.showGrid));
+        buttonList.add(toggle(SHOW_BLOCK_OUTLINE, left + 77, y + 40, 73,
+                "crosshairselection.gt_block_outline", GtOverlayConfig.showBlockOutline));
         buttonList.add(toggle(ALL_FACES, left, y + 60, "crosshairselection.gt_all_faces", GtOverlayConfig.gridAllFaces));
         buttonList.add(toggle(SHOW_INPUT_X, left, y + 80, "crosshairselection.gt_show_input_x",
                 GtOverlayConfig.showInputFaceX));
@@ -108,7 +112,11 @@ public class GtOverlayScreen extends GuiScreen implements SliderHost {
     }
 
     private GuiButton toggle(int id, int x, int y, String key, boolean value) {
-        return new GuiButton(id, x, y, 150, 18,
+        return toggle(id, x, y, 150, key, value);
+    }
+
+    private GuiButton toggle(int id, int x, int y, int width, String key, boolean value) {
+        return new GuiButton(id, x, y, width, 18,
                 StatCollector.translateToLocalFormatted(key, onOff(value)));
     }
 
@@ -147,6 +155,11 @@ public class GtOverlayScreen extends GuiScreen implements SliderHost {
                 GtOverlayConfig.showGrid = !GtOverlayConfig.showGrid;
                 button.displayString = StatCollector.translateToLocalFormatted(
                         "crosshairselection.gt_show_grid", onOff(GtOverlayConfig.showGrid));
+                break;
+            case SHOW_BLOCK_OUTLINE:
+                GtOverlayConfig.showBlockOutline = !GtOverlayConfig.showBlockOutline;
+                button.displayString = StatCollector.translateToLocalFormatted(
+                        "crosshairselection.gt_block_outline", onOff(GtOverlayConfig.showBlockOutline));
                 break;
             case SMOOTH_TRANSITION:
                 GtOverlayConfig.smoothTransition = !GtOverlayConfig.smoothTransition;
@@ -276,6 +289,7 @@ public class GtOverlayScreen extends GuiScreen implements SliderHost {
         private final boolean enabled;
         private final boolean useSelectionStyle;
         private final boolean showGrid;
+        private final boolean showBlockOutline;
         private final int colour;
         private final int gridColour;
         private final float thickness;
@@ -294,6 +308,7 @@ public class GtOverlayScreen extends GuiScreen implements SliderHost {
             enabled = GtOverlayConfig.enabled;
             useSelectionStyle = GtOverlayConfig.useSelectionStyle;
             showGrid = GtOverlayConfig.showGrid;
+            showBlockOutline = GtOverlayConfig.showBlockOutline;
             colour = GtOverlayConfig.colour;
             gridColour = GtOverlayConfig.gridColour;
             thickness = GtOverlayConfig.thickness;
@@ -313,6 +328,7 @@ public class GtOverlayScreen extends GuiScreen implements SliderHost {
             GtOverlayConfig.enabled = enabled;
             GtOverlayConfig.useSelectionStyle = useSelectionStyle;
             GtOverlayConfig.showGrid = showGrid;
+            GtOverlayConfig.showBlockOutline = showBlockOutline;
             GtOverlayConfig.colour = colour;
             GtOverlayConfig.gridColour = gridColour;
             GtOverlayConfig.thickness = thickness;
