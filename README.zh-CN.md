@@ -20,7 +20,13 @@
 把 jar 放进 `mods`。需要 Forge 10.13.4.1614、GTNHLib 和 UniMixins，已在 GTNH 2.9.0-RC-2 测试。
 
 设置位于 **Mods → Crosshair-Selection → Config**，也可以执行 `/crosshairselection`
-（别名 `/csb`）。没有快捷键。
+（别名 `/csb`）。
+
+### BetterQuesting 返回键
+
+BetterQuesting 把返回键写死为 Backspace。安装 BetterQuesting 时，本模组会在 `BetterQuesting`
+按键分类下注册一个 **返回** 键，可以改成任意键盘键或鼠标侧键。默认仍是 Backspace，不改动时行为
+不变；文本框输入不受影响。
 
 ## 构建
 

@@ -10,7 +10,8 @@
     "MixinMinecraft",
     "MixinRenderGlobal",
     "MixinGtBlockOverlayRenderer",
-    "MixinPlayerControllerMP"
+    "MixinPlayerControllerMP",
+    "MixinGuiScreenKeyboard"
   ],
   "injectors": {
     "defaultRequire": 1

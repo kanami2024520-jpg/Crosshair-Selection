@@ -92,3 +92,4 @@ crosshairselection.auto=Auto
 crosshairselection.gt_x_style.full_x=Full X
 crosshairselection.gt_extra_margin=GT Extra Margin: %s
 crosshairselection.gt_block_outline=Outline: %s
+key.betterquesting.back=Back

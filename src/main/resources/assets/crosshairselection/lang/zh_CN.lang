@@ -92,3 +92,4 @@ crosshairselection.auto=自动
 crosshairselection.gt_x_style.full_x=全格 X
 crosshairselection.gt_extra_margin=GT 额外边距：%s
 crosshairselection.gt_block_outline=描边：%s
+key.betterquesting.back=返回
