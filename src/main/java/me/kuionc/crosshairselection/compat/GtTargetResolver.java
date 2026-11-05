@@ -29,6 +29,22 @@ public final class GtTargetResolver {
             return null;
         }
         World world = player.worldObj;
+        boolean vanillaGt = vanilla != null
+                && vanilla.typeOfHit == MovingObjectPosition.MovingObjectType.BLOCK
+                && GtOverlayCompat.isGtTarget(world, vanilla.blockX, vanilla.blockY, vanilla.blockZ,
+                world.getBlock(vanilla.blockX, vanilla.blockY, vanilla.blockZ));
+        double vanillaDistance = vanilla != null && vanilla.hitVec != null
+                ? eyeDistance(player, vanilla.hitVec) : Double.MAX_VALUE;
+        if (vanilla != null) {
+            if (vanilla.typeOfHit == MovingObjectPosition.MovingObjectType.ENTITY) {
+                return null;
+            }
+            // Never replace a valid non-GT block target (for example an EnderIO conduit face)
+            // with a GT machine behind it.
+            if (vanilla.typeOfHit == MovingObjectPosition.MovingObjectType.BLOCK && !vanillaGt) {
+                return null;
+            }
+        }
         Minecraft mc = Minecraft.getMinecraft();
         Vec3 eye = Vec3.createVectorHelper(player.posX,
                 player.posY + player.getEyeHeight(), player.posZ);
@@ -93,12 +109,6 @@ public final class GtTargetResolver {
         if (best == null) {
             return null;
         }
-        boolean vanillaGt = vanilla != null
-                && vanilla.typeOfHit == MovingObjectPosition.MovingObjectType.BLOCK
-                && GtOverlayCompat.isGtTarget(world, vanilla.blockX, vanilla.blockY, vanilla.blockZ,
-                world.getBlock(vanilla.blockX, vanilla.blockY, vanilla.blockZ));
-        double vanillaDistance = vanilla != null && vanilla.hitVec != null
-                ? eye.distanceTo(vanilla.hitVec) : Double.MAX_VALUE;
         if (!vanillaGt && vanillaDistance + 0.05D < bestDistance) {
             return null;
         }
@@ -108,6 +118,13 @@ public final class GtTargetResolver {
             return null;
         }
         return best;
+    }
+
+    private static double eyeDistance(EntityPlayer player, Vec3 hit) {
+        double dx = player.posX - hit.xCoord;
+        double dy = player.posY + player.getEyeHeight() - hit.yCoord;
+        double dz = player.posZ - hit.zCoord;
+        return Math.sqrt(dx * dx + dy * dy + dz * dz);
     }
 
     private static Candidate intersect(Vec3 eye, Vec3 end, AxisAlignedBB box,

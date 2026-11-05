@@ -23,7 +23,14 @@ Put the jar in `mods`. Requires Forge 10.13.4.1614, GTNHLib and UniMixins. Teste
 2.9.0-RC-2.
 
 Settings are under **Mods → Crosshair-Selection → Config**, or run `/crosshairselection`
-(alias `/csb`). There is no keybind.
+(alias `/csb`).
+
+### BetterQuesting back key
+
+BetterQuesting hardcodes Backspace as its page back key. With BetterQuesting installed this mod
+registers a **Back** key in the `BetterQuesting` key category, so it can be rebound to any key or
+mouse side button. It defaults to Backspace, so behaviour is unchanged until you change it.
+Text fields still delete characters normally.
 
 ## Build
 
