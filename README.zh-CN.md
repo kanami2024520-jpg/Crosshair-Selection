@@ -56,7 +56,7 @@ BetterQuesting 把返回键写死为 Backspace。安装 BetterQuesting 时，本
 
 ## 安装
 
-把 jar 放进 `mods`。需要 Forge 10.13.4.1614、GTNHLib 和 UniMixins，已在 GTNH 2.9.0-RC-2 测试。
+把 jar 放进 `mods`。需要 Forge 10.13.4.1614、GTNHLib 和 UniMixins，已在 GTNH 2.9.0-stable 测试。
 
 设置位于 **Mods → Crosshair-Selection → Config**，也可以执行 `/csc`。
 

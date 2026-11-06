@@ -40,7 +40,11 @@ public final class RibbonBuffer {
      * 后三项换算成「四边形半宽向量」，绘制时直接用。
      */
     private static final int FLOATS_PER_SEGMENT = 10;
-    /** 每帧最大边数；必须与 selection.frag 里 uEdgeA/uEdgeB 的数组长度一致。 */
+    /**
+     * 每批最大边数；必须与 selection.frag 里 uEdgeA/uEdgeB 的数组长度一致。
+     *
+     * <p>超过这个数量不会丢边：写满时先 flush 再继续，所以一整帧的边数没有上限。
+     */
     private static final int MAX_SEGMENTS = 64;
 
     private static ShaderProgram program;
@@ -153,7 +157,10 @@ public final class RibbonBuffer {
                                   double halfWidthWorld,
                                   float thicknessPixels) {
         if (segmentCount >= MAX_SEGMENTS) {
-            return;
+            // 写满就先画掉这一批再继续。以前这里是直接 return，
+            // 超出的边被静默丢弃：AE 总线这类一堆小盒子的目标（一个致密线就有十几
+            // 个碰撞盒 = 150 多条边）会显示成「只描了一半」。
+            flush();
         }
         int base = segmentCount * FLOATS_PER_SEGMENT;
         segments[base] = (float) ax;
@@ -178,6 +185,16 @@ public final class RibbonBuffer {
      * 着色器 uniform 必须在本帧 program.use() 之后上传，否则会写到上一帧的程序上。
      */
     public static void end() {
+        flush();
+    }
+
+    /**
+     * 绘制并清空当前这一批。
+     *
+     * <p>批次参数（颜色、流光、相机）留在字段里，所以 {@link #addSegment} 写满时
+     * 可以先调一次继续入队，最终由 {@link #end} 画最后一批。
+     */
+    private static void flush() {
         if (segmentCount <= 0) {
             return;
         }

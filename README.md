@@ -64,7 +64,7 @@ Text fields still delete characters normally.
 ## Install
 
 Put the jar in `mods`. Requires Forge 10.13.4.1614, GTNHLib and UniMixins. Tested on GTNH
-2.9.0-RC-2.
+2.9.0-stable.
 
 Settings are under **Mods → Crosshair-Selection → Config**, or run `/csc`.
 
