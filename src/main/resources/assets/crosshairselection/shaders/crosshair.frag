@@ -11,6 +11,11 @@
 //   - 反馈与蓄力的数值都是 0..1，由 CrosshairFeedback / TicCrosshairCompat 提供。
 
 // 余弦缓动：两端慢、中间快。
+// 量子闪烁。相位由 Java 的 GlitchClock 积分得到，另外两个值供撕裂与扫描线使用。
+uniform float uGlitchPhase;
+uniform float uGlitchStep;
+uniform float uGlitchTime;
+
 float easeCosine(float x) {
     return 0.5 - 0.5 * cos(6.28318530718 * x);
 }
@@ -19,53 +24,6 @@ float easeCosine(float x) {
 float easeTriangle(float x) {
     return abs(fract(x) * 2.0 - 1.0);
 }
-
-// 流光坐标系（屏幕像素，相对准星中心）。
-uniform vec3 uFlowAxis;
-uniform vec3 uFlowOrigin;
-uniform float uSweepMin;
-uniform float uSweepMax;
-uniform float uSweepRadius;
-uniform float uSweepCentreOut;
-
-// 量子闪烁。
-uniform float uGlitchPhase;
-uniform float uGlitchStep;
-uniform float uGlitchTime;
-
-// 准星的屏幕位置与屏幕尺寸，单位均为物理像素。
-uniform vec2 uCentre;
-uniform vec2 uScreen;
-// 臂厚的一半、中心间隙、横/纵臂长、描边厚度、旋转弧度。
-uniform float uHalf;
-uniform float uGap;
-uniform float uArmX;
-uniform float uArmY;
-uniform float uOutline;
-uniform float uRotation;
-uniform vec4 uColour;
-uniform vec4 uOutlineColour;
-uniform vec4 uDotColour;
-uniform float uDot;
-uniform float uFlowMode;
-uniform vec4 uFlowColour;
-uniform float uFlowPhase;
-uniform float uFlowMotion;
-uniform float uFlowDensity;
-uniform float uFlowProgress;
-uniform float uFlowSoftness;
-uniform float uGlintStrength;
-uniform float uGlintRadius;
-uniform float uGlintStar;
-uniform vec2 uGlintScreen;
-// 交互反馈。所有样式共用同一个 0..1 的连续状态，由 CrosshairFeedback 按速度积分得出，
-// 因此连续点击会从当前状态继续，而不是每次重置。
-uniform float uPunch;        // 冲击位移量
-uniform float uGapBoost;     // 额外的臂间距（物理像素）
-uniform float uWaveScale;    // 反馈用的整体缩放（只影响臂到中心的距离）
-uniform float uBowOpen;      // 拉弓带来的额外间隙，单位物理像素
-
-uniform float uPlacePulse;   // 放置时的扩散光环
 
 float hash21(vec2 p) {
     p = fract(p * vec2(123.34, 456.21));
@@ -93,7 +51,6 @@ float flowNoise(vec2 p) {
 float motionPhase(float x, int mode, vec2 position) {
     if (mode == 1) {
         // 单向流动，速度平滑变化：单调递增的余弦缓动。
-        // 以前这里是 0.5 - 0.5cos(2πx)，和三角波一样是往复振荡，观感几乎一样。
         float w = fract(x);
         return w - sin(6.28318530718 * w) / 6.28318530718;
     }
@@ -108,13 +65,6 @@ float motionPhase(float x, int mode, vec2 position) {
                 + valueNoise(position * 0.10 + vec2(t * 1.6 + 17.3, t * 1.1)) * 0.35;
     }
     return fract(x);
-}
-
-float hash11(float p) {
-    p = fract(p * 0.1031);
-    p *= p + 33.33;
-    p *= p + p;
-    return fract(p);
 }
 
 vec3 hsvToRgb(vec3 c) {
@@ -136,12 +86,11 @@ vec3 flowColour(float phase, vec2 position, vec4 colourParams, float density) {
     return hsvToRgb(vec3(fract(t), colourParams.z, colourParams.w));
 }
 
-/** 流光/扫光的取样坐标（屏幕像素，相对准星中心）。 */
-float flowCoord(vec2 p) {
-    if (uSweepCentreOut > 0.5) {
-        return length(p);
-    }
-    return dot(p, uFlowAxis.xy);
+float hash11(float p) {
+    p = fract(p * 0.1031);
+    p *= p + 33.33;
+    p *= p + p;
+    return fract(p);
 }
 
 /** GLITCH 区块撕裂：按屏幕 Y 切条，随机把几条整体横向错位。 */
@@ -154,31 +103,13 @@ float glitchShift(vec2 p) {
     return 0.0;
 }
 
-vec3 flowSample(vec2 p) {
-    if (uFlowMotion > 3.5) {
-        vec2 torn = p;
-        torn.x += glitchShift(p);
-        float coord = flowCoord(torn);
-        return hsvToRgb(vec3(
-                fract(uFlowColour.x + fract(coord * uFlowDensity + uGlitchPhase) * uFlowColour.y),
-                uFlowColour.z, uFlowColour.w));
-    }
-
-    float phase = motionPhase(uFlowPhase, int(uFlowMotion), p * 0.01);
-    float coord = flowCoord(p);
-    vec3 flow = hsvToRgb(vec3(
-            fract(uFlowColour.x + fract(coord * uFlowDensity + phase) * uFlowColour.y),
-            uFlowColour.z, uFlowColour.w));
-
-    if (uFlowMode > 1.5) {
-        float along = uSweepCentreOut > 0.5
-                ? coord / max(uSweepRadius, 0.0001)
-                : (coord - uSweepMin) / max(uSweepMax - uSweepMin, 0.0001);
-        float d = along - uFlowProgress;
-        float mask = d <= 0.0 ? 1.0 : 1.0 - smoothstep(0.0, max(uFlowSoftness, 0.001), d);
-        flow = mix(uColour.rgb, flow, mask);
-    }
-    return flow;
+/** GLITCH 取色：先按条带错位，再用积分相位取色带。 */
+vec3 glitchColour(vec2 p, vec4 colourParams, float density) {
+    vec2 torn = p;
+    torn.x += glitchShift(p);
+    float band = dot(torn, vec2(0.01)) * density;
+    float t = colourParams.x + fract(band + uGlitchPhase) * colourParams.y;
+    return hsvToRgb(vec3(fract(t), colourParams.z, colourParams.w));
 }
 
 /** 条带遮罩：带内为 1，带外淡出到 0。 */
@@ -220,6 +151,38 @@ vec3 blendColour(vec3 src, vec3 dst, int blendMode, float glow) {
 }
 
 
+// 准星的屏幕位置与屏幕尺寸，单位均为物理像素。
+uniform vec2 uCentre;
+uniform vec2 uScreen;
+// 臂厚的一半、中心间隙、横/纵臂长、描边厚度、旋转弧度。
+uniform float uHalf;
+uniform float uGap;
+uniform float uArmX;
+uniform float uArmY;
+uniform float uOutline;
+uniform float uRotation;
+uniform vec4 uColour;
+uniform vec4 uOutlineColour;
+uniform vec4 uDotColour;
+uniform float uDot;
+uniform float uFlowMode;
+uniform vec4 uFlowColour;
+uniform float uFlowPhase;
+uniform float uFlowMotion;
+uniform float uFlowDensity;
+uniform float uFlowProgress;
+uniform float uFlowSoftness;
+uniform float uGlintStrength;
+uniform float uGlintRadius;
+uniform float uGlintStar;
+uniform vec2 uGlintScreen;
+// 交互反馈。所有样式共用同一个 0..1 的连续状态，由 CrosshairFeedback 按速度积分得出，
+// 因此连续点击会从当前状态继续，而不是每次重置。
+uniform float uPunch;        // 冲击位移量
+uniform float uGapBoost;     // 额外的臂间距（物理像素）
+uniform float uWaveScale;    // 反馈用的整体缩放（只影响臂到中心的距离）
+uniform float uBowOpen;      // 拉弓带来的额外间隙，单位物理像素
+uniform float uPlacePulse;   // 放置时的扩散光环
 
 vec2 rotate(vec2 p) {
     float c = cos(uRotation);
@@ -278,18 +241,42 @@ void main() {
     float alpha = uColour.a * body;
 
     if (uFlowMode > 0.5) {
-        vec2 p = screen - uCentre;
+        vec2 rel = screen - uCentre;
         if (uFlowMotion > 3.5) {
             // RGB 色差 + 高频扫描线。
             float split = 0.01 + hash11(uGlitchStep * 3.0) * 0.02;
-            rgb = vec3(flowSample(p + vec2(split * 16.0, 0.0)).r,
-                       flowSample(p).g,
-                       flowSample(p - vec2(split * 16.0, 0.0)).b);
-            rgb *= 0.72 + 0.28 * sin(p.y / 16.0 * 50.0 + uGlitchTime * 30.0);
+            rgb = vec3(glitchColour(rel + vec2(split * 16.0, 0.0), uFlowColour, uFlowDensity).r,
+                       glitchColour(rel, uFlowColour, uFlowDensity).g,
+                       glitchColour(rel - vec2(split * 16.0, 0.0), uFlowColour, uFlowDensity).b);
+            rgb *= 0.72 + 0.28 * sin(rel.y / 16.0 * 50.0 + uGlitchTime * 30.0);
+            alpha = uColour.a * body;
+            // 跳过下面的常规流光分支。
         } else {
-            rgb = flowSample(p);
+        float phase = motionPhase(uFlowPhase, int(uFlowMotion), screen * 0.01);
+        vec3 flow = flowColour(phase, screen - uCentre, uFlowColour, uFlowDensity);
+
+        if (uFlowMode > 1.5 && uFlowMode < 2.5) {
+            float height01 = screen.y / max(uScreen.y, 1.0);
+            float sweep = height01 - uFlowProgress;
+            float mask = sweep <= 0.0 ? 1.0 : 1.0 - smoothstep(0.0, max(uFlowSoftness, 0.001), sweep);
+            flow = mix(uColour.rgb, flow, mask);
         }
+
+        if (uFlowMode > 2.5) {
+            // 星芒（旧模式，保留兼容）：以准星中心为原点的柔光核与十字星。
+            float radius = max(uGlintRadius, 1.0);
+            vec2 delta = screen - uGlintScreen;
+            float r = length(delta);
+            float glow = exp(-(r * r) / (2.0 * radius * radius));
+            float star = uGlintStar * exp(-r * 0.06)
+                    * (0.5 + 0.5 * cos(atan(delta.y, delta.x) * 4.0));
+            float intensity = (glow + star) * uGlintStrength;
+            flow = min(flow + vec3(intensity), vec3(1.0));
+        }
+
+        rgb = flow;
         alpha = uColour.a * body;
+        }
     }
 
     if (uOutline > 0.0) {

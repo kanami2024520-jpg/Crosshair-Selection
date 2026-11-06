@@ -71,18 +71,21 @@ public final class CrosshairShaderRenderer {
             return false;
         }
         try {
-            uCentre = program.getUniformLocation("uCentre");
-            uHalf = program.getUniformLocation("uHalf");
-            uGap = program.getUniformLocation("uGap");
-            uArmX = program.getUniformLocation("uArmX");
-            uArmY = program.getUniformLocation("uArmY");
-            uOutline = program.getUniformLocation("uOutline");
-            uRotation = program.getUniformLocation("uRotation");
-            uColour = program.getUniformLocation("uColour");
-            uOutlineColour = program.getUniformLocation("uOutlineColour");
-            uDotColour = program.getUniformLocation("uDotColour");
-            uDot = program.getUniformLocation("uDot");
-            uScreen = program.getUniformLocation("uScreen");
+            // 全部用 lenient：着色器里暂时用不到的 uniform 会被驱动优化掉，
+            // getUniformLocation 对它们会抛异常。以前 uScreen 是硬查的，
+            // 一次改写把它变成了未使用 uniform，整个准星就再也画不出来了。
+            uCentre = lenient("uCentre");
+            uHalf = lenient("uHalf");
+            uGap = lenient("uGap");
+            uArmX = lenient("uArmX");
+            uArmY = lenient("uArmY");
+            uOutline = lenient("uOutline");
+            uRotation = lenient("uRotation");
+            uColour = lenient("uColour");
+            uOutlineColour = lenient("uOutlineColour");
+            uDotColour = lenient("uDotColour");
+            uDot = lenient("uDot");
+            uScreen = lenient("uScreen");
             uPunch = lenient("uPunch");
             uPlacePulse = lenient("uPlacePulse");
             uGapBoost = lenient("uGapBoost");
@@ -177,10 +180,7 @@ public final class CrosshairShaderRenderer {
         if (uWaveScale >= 0) {
             GL20.glUniform1f(uWaveScale, 1.0F);
         }
-        float flowReach = Math.max(armX, armY) + gap + half + outline;
-        ShaderSupport.uploadFlow(program, CrosshairConfig.flow, System.currentTimeMillis(),
-                progress, ShaderSupport.FlowFrame.screen(
-                        CrosshairConfig.flow, centreX, height - centreY, Math.max(flowReach, 1.0F)));
+        ShaderSupport.uploadFlow(program, CrosshairConfig.flow, System.currentTimeMillis(), progress);
 
         RenderBackend.beginGuiOverlay();
         // 不再使用 scissor：顶点铺满全屏，范围由片段着色器的 discard 决定，
