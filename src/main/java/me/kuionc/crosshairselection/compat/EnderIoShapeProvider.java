@@ -25,7 +25,6 @@ public final class EnderIoShapeProvider implements ShapeProvider {
 
     private static final Class<?> BUNDLE_INTERFACE = classOrNull("crazypants.enderio.conduit.IConduitBundle");
     private static final Method GET_COMPONENTS = methodOrNull(BUNDLE_INTERFACE, "getCollidableComponents");
-    private static final Method GET_CONNECTORS = methodOrNull(BUNDLE_INTERFACE, "getConnectors");
     private static Field boundField;
     private static Field dataField;
     private static Field conduitTypeField;
@@ -74,20 +73,16 @@ public final class EnderIoShapeProvider implements ShapeProvider {
                     continue;
                 }
                 physical.add(new Component((Class<?>) conduitTypeField.get(component),
-                        AxisAlignedBB.getBoundingBox(minX, minY, minZ, maxX, maxY, maxZ), component));
+                        AxisAlignedBB.getBoundingBox(minX, minY, minZ, maxX, maxY, maxZ)));
             }
             if (physical.isEmpty()) {
                 return false;
             }
 
+            // 不再单独描「命中的那一个组件」：EnderIO 的端部盖子和中心核都是很小的盒子，
+            // 只描它们会得到线中间/两端的一小截，毫无意义。命中任何组件都按 conduitType
+            // 分组，输出该类型的全部组件，得到完整的一整条线。
             Component hit = hitComponent(physical, target, x, y, z);
-            if (hit != null && isConnector(hit.source, tile)) {
-                out.add(OutlineShape.box(AxisAlignedBB.getBoundingBox(
-                        hit.box.minX + x, hit.box.minY + y, hit.box.minZ + z,
-                        hit.box.maxX + x, hit.box.maxY + y, hit.box.maxZ + z), false));
-                return true;
-            }
-
             Class<?> hitType = hit != null ? hit.type : null;
             Map<Class<?>, List<AxisAlignedBB>> groups = new LinkedHashMap<Class<?>, List<AxisAlignedBB>>();
             for (Component component : physical) {
@@ -125,26 +120,6 @@ public final class EnderIoShapeProvider implements ShapeProvider {
         }
     }
 
-    private static boolean isConnector(Object source, TileEntity tile) {
-        if (GET_CONNECTORS == null || source == null) {
-            return false;
-        }
-        try {
-            Object value = GET_CONNECTORS.invoke(tile);
-            if (!(value instanceof Iterable)) {
-                return false;
-            }
-            for (Object connector : (Iterable<?>) value) {
-                if (connector == source || (connector != null && connector.equals(source))) {
-                    return true;
-                }
-            }
-        } catch (Throwable ignored) {
-            // Treat unknown components as non-connectors.
-        }
-        return false;
-    }
-
     private static Component hitComponent(List<Component> components, MovingObjectPosition target,
                                           int x, int y, int z) {
         if (target == null || target.hitVec == null) {
@@ -153,21 +128,33 @@ public final class EnderIoShapeProvider implements ShapeProvider {
         double hitX = target.hitVec.xCoord - x;
         double hitY = target.hitVec.yCoord - y;
         double hitZ = target.hitVec.zCoord - z;
+        // 按「命中点到盒面的距离」取最近，而不是「体积最小」。
+        // 体积最小的往往就是中心核或端盖，会让描边跑到那一小截上去。
         Component best = null;
+        double bestDistance = Double.MAX_VALUE;
         double bestVolume = Double.MAX_VALUE;
         for (Component component : components) {
             AxisAlignedBB box = component.box;
-            if (hitX >= box.minX - 0.002D && hitX <= box.maxX + 0.002D
-                    && hitY >= box.minY - 0.002D && hitY <= box.maxY + 0.002D
-                    && hitZ >= box.minZ - 0.002D && hitZ <= box.maxZ + 0.002D) {
-                double volume = (box.maxX - box.minX) * (box.maxY - box.minY) * (box.maxZ - box.minZ);
-                if (volume < bestVolume) {
-                    bestVolume = volume;
-                    best = component;
-                }
+            double distance = distanceToBox(box, hitX, hitY, hitZ);
+            if (distance > bestDistance + 1.0E-4D) {
+                continue;
+            }
+            double volume = (box.maxX - box.minX) * (box.maxY - box.minY) * (box.maxZ - box.minZ);
+            if (distance < bestDistance - 1.0E-4D || volume < bestVolume) {
+                bestDistance = distance;
+                bestVolume = volume;
+                best = component;
             }
         }
         return best;
+    }
+
+    /** 点到 AABB 的距离；点在盒内时为 0。 */
+    private static double distanceToBox(AxisAlignedBB box, double x, double y, double z) {
+        double dx = Math.max(0.0D, Math.max(box.minX - x, x - box.maxX));
+        double dy = Math.max(0.0D, Math.max(box.minY - y, y - box.maxY));
+        double dz = Math.max(0.0D, Math.max(box.minZ - z, z - box.maxZ));
+        return Math.sqrt(dx * dx + dy * dy + dz * dz);
     }
 
     private static boolean isNonPhysical(Object data) {
@@ -183,12 +170,10 @@ public final class EnderIoShapeProvider implements ShapeProvider {
     private static final class Component {
         private final Class<?> type;
         private final AxisAlignedBB box;
-        private final Object source;
 
-        private Component(Class<?> type, AxisAlignedBB box, Object source) {
+        private Component(Class<?> type, AxisAlignedBB box) {
             this.type = type;
             this.box = box;
-            this.source = source;
         }
     }
 

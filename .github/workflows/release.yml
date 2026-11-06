@@ -50,8 +50,10 @@ jobs:
         run: |
           version="${{ steps.version.outputs.version }}"
           mkdir -p release
-          cp "build/libs/crosshairselection-${version}.jar" release/
-          cp "build/libs/crosshairselection-${version}-sources.jar" release/
+          # 分发的只有这两个：patched 带 BetterQuesting 返回键补丁，clean 不带。
+          # 基础包（crosshairselection-<version>.jar）是 reobf 中间产物，不能直接发布。
+          cp "build/libs/crosshairselection-${version}-patched.jar" release/
+          cp "build/libs/crosshairselection-${version}-clean.jar" release/
           ls -l release
 
       - name: Publish GitHub Release

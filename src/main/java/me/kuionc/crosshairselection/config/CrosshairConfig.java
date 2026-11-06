@@ -33,8 +33,9 @@ public class CrosshairConfig {
     @Config.RangeFloat(min = 0.0F, max = 50.0F)
     public static float gap = 0.0F;
 
-    @Config.Comment("Thickness of the crosshair arms in quarter GUI pixels (1 = 0.25, 4 = 1.0).")
-    @Config.RangeInt(min = 1, max = 40)
+    @Config.Comment("Thickness of the crosshair arms in quarter GUI pixels (1 = 0.25, 4 = 1.0). "
+            + "The minimum is 3 (0.75 GUI pixels); thinner arms are below one physical pixel.")
+    @Config.RangeInt(min = 3, max = 40)
     public static int thickness = 3;
 
     @Config.Comment("Rotation in degrees.")

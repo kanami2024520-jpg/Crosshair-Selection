@@ -73,10 +73,15 @@ public final class ShaderSupport {
      * 上传流光参数。相位里已经包含时间推进，着色器只负责按运动曲线做映射。
      */
     static void uploadFlow(ShaderProgram program, FlowSettings flow, long now) {
-        uploadFlow(program, flow, now, flow.progress);
+        uploadFlow(program, flow, now, flow.progress, FlowFrame.worldUnit(flow));
     }
 
     static void uploadFlow(ShaderProgram program, FlowSettings flow, long now, float progress) {
+        uploadFlow(program, flow, now, progress, FlowFrame.worldUnit(flow));
+    }
+
+    static void uploadFlow(ShaderProgram program, FlowSettings flow, long now, float progress,
+                           FlowFrame frame) {
         int mode;
         switch (flow.mode) {
             case FLOW:
@@ -111,6 +116,134 @@ public final class ShaderSupport {
             GL20.glUniform3f(axisLocation, axis[0], axis[1], axis[2]);
         }
         uniform(program, "uSweepCentreOut", flow.direction == FlowSettings.Direction.CENTER_OUT ? 1.0F : 0.0F);
+
+        // 流光/扫光的坐标系：方向轴、原点与投影范围。
+        // 有了它们「角到角」才能真正沿选中的两个角走，扫光进度也才能和形状范围对齐。
+        if (frame != null) {
+            int originLocation = location(program, "uFlowOrigin");
+            if (originLocation >= 0) {
+                GL20.glUniform3f(originLocation, frame.originX, frame.originY, frame.originZ);
+            }
+            int flowAxisLocation = location(program, "uFlowAxis");
+            if (flowAxisLocation >= 0) {
+                GL20.glUniform3f(flowAxisLocation, frame.axisX, frame.axisY, frame.axisZ);
+            }
+            uniform(program, "uSweepMin", frame.min);
+            uniform(program, "uSweepMax", frame.max);
+            uniform(program, "uSweepRadius", frame.radius);
+        }
+
+        // 量子闪烁：相位由 GlitchClock 积分得到，另外两个值供撕裂与扫描线使用。
+        float glitchPhase = 0.0F;
+        float glitchStep = 0.0F;
+        float glitchTime = 0.0F;
+        if (flow.motion == FlowSettings.Motion.GLITCH) {
+            glitchPhase = GlitchClock.phase(flow, now);
+            glitchStep = GlitchClock.step(now);
+            glitchTime = (float) (now / 1000.0D);
+        }
+        uniform(program, "uGlitchPhase", glitchPhase);
+        uniform(program, "uGlitchStep", glitchStep);
+        uniform(program, "uGlitchTime", glitchTime);
+    }
+
+    /**
+     * 流光使用的坐标系。
+     *
+     * <p>{@code origin}、{@code min}/{@code max} 都用与着色器相同的空间：
+     * 选框/填充是世界坐标，准星是屏幕像素。
+     */
+    static final class FlowFrame {
+
+        final float originX;
+        final float originY;
+        final float originZ;
+        final float axisX;
+        final float axisY;
+        final float axisZ;
+        final float min;
+        final float max;
+        final float radius;
+
+        private FlowFrame(float originX, float originY, float originZ,
+                          float axisX, float axisY, float axisZ,
+                          float min, float max, float radius) {
+            this.originX = originX;
+            this.originY = originY;
+            this.originZ = originZ;
+            this.axisX = axisX;
+            this.axisY = axisY;
+            this.axisZ = axisZ;
+            this.min = min;
+            this.max = max;
+            this.radius = radius;
+        }
+
+        /** 没有几何信息时的单位坐标系（只有方向有意义）。 */
+        static FlowFrame worldUnit(FlowSettings flow) {
+            float[] axis = axisFor(flow);
+            return new FlowFrame(0.0F, 0.0F, 0.0F, axis[0], axis[1], axis[2], -1.0F, 1.0F, 1.0F);
+        }
+
+        /** 世界坐标的包围盒 → 流光坐标系。 */
+        static FlowFrame world(FlowSettings flow, double minX, double minY, double minZ,
+                               double maxX, double maxY, double maxZ) {
+            float originX = (float) ((minX + maxX) * 0.5D);
+            float originY = (float) ((minY + maxY) * 0.5D);
+            float originZ = (float) ((minZ + maxZ) * 0.5D);
+            float radius = (float) (Math.sqrt(square(maxX - minX) + square(maxY - minY)
+                    + square(maxZ - minZ)) * 0.5D);
+            return box(flow, originX, originY, originZ, radius,
+                    (float) (maxX - minX), (float) (maxY - minY), (float) (maxZ - minZ));
+        }
+
+        /** 屏幕坐标的坐标系：origin 是准星中心，radius 是准星的覆盖半径。 */
+        static FlowFrame screen(FlowSettings flow, float centreX, float centreY, float radius) {
+            boolean centreOut = flow.direction == FlowSettings.Direction.CENTER_OUT;
+            float axisX = centreOut ? 0.0F : 0.70710677F;
+            float axisY = centreOut ? 0.0F : 0.70710677F;
+            return new FlowFrame(centreX, centreY, 0.0F, axisX, axisY, 0.0F,
+                    -radius, radius, radius);
+        }
+
+        private static FlowFrame box(FlowSettings flow, float originX, float originY, float originZ,
+                                     float radius, float sizeX, float sizeY, float sizeZ) {
+            float[] axis = axisFor(flow);
+            boolean centreOut = flow.direction == FlowSettings.Direction.CENTER_OUT;
+            if (centreOut) {
+                return new FlowFrame(originX, originY, originZ, 0.0F, 0.0F, 0.0F,
+                        0.0F, Math.max(radius, 0.001F), Math.max(radius, 0.001F));
+            }
+            // 八个角在轴上的投影范围。
+            float halfX = sizeX * 0.5F;
+            float halfY = sizeY * 0.5F;
+            float halfZ = sizeZ * 0.5F;
+            float extent = Math.abs(axis[0]) * halfX + Math.abs(axis[1]) * halfY
+                    + Math.abs(axis[2]) * halfZ;
+            return new FlowFrame(originX, originY, originZ, axis[0], axis[1], axis[2],
+                    -extent, extent, Math.max(radius, 0.001F));
+        }
+
+        /** 方向轴；REVERSE 由相位符号处理，这里始终返回正向单位向量。 */
+        static float[] axisFor(FlowSettings flow) {
+            if (flow.direction == FlowSettings.Direction.CORNER_TO_CORNER) {
+                float[] start = cornerOffset(flow.startCorner);
+                float[] end = cornerOffset(flow.endCorner);
+                float dx = end[0] - start[0];
+                float dy = end[1] - start[1];
+                float dz = end[2] - start[2];
+                float length = (float) Math.sqrt(dx * dx + dy * dy + dz * dz);
+                if (length > 1.0E-4F) {
+                    return new float[]{dx / length, dy / length, dz / length};
+                }
+            }
+            float inv = 0.57735027F;
+            return new float[]{inv, inv, inv};
+        }
+
+        private static double square(double value) {
+            return value * value;
+        }
     }
 
     /**

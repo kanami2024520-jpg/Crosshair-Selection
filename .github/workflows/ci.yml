@@ -35,5 +35,8 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: crosshairselection-build
-          path: build/libs/*.jar
+          # 只上传可分发产物；*-dev / 基础包 / sources 属于构建中间结果。
+          path: |
+            build/libs/*-patched.jar
+            build/libs/*-clean.jar
           if-no-files-found: error

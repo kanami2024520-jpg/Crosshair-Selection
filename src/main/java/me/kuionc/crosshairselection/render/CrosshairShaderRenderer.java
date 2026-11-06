@@ -177,7 +177,10 @@ public final class CrosshairShaderRenderer {
         if (uWaveScale >= 0) {
             GL20.glUniform1f(uWaveScale, 1.0F);
         }
-        ShaderSupport.uploadFlow(program, CrosshairConfig.flow, System.currentTimeMillis(), progress);
+        float flowReach = Math.max(armX, armY) + gap + half + outline;
+        ShaderSupport.uploadFlow(program, CrosshairConfig.flow, System.currentTimeMillis(),
+                progress, ShaderSupport.FlowFrame.screen(
+                        CrosshairConfig.flow, centreX, height - centreY, Math.max(flowReach, 1.0F)));
 
         RenderBackend.beginGuiOverlay();
         // 不再使用 scissor：顶点铺满全屏，范围由片段着色器的 discard 决定，

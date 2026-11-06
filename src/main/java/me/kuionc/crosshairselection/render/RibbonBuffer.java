@@ -70,6 +70,8 @@ public final class RibbonBuffer {
     private static float cameraX;
     private static float cameraY;
     private static float cameraZ;
+    /** 世界坐标的整批包围盒，用于把流光/扫光映射到形状范围内；null 表示未知。 */
+    private static double[] batchBounds;
 
     private RibbonBuffer() {
     }
@@ -130,6 +132,12 @@ public final class RibbonBuffer {
      */
     public static boolean begin(int colour, FlowSettings flow,
                                 double camX, double camY, double camZ) {
+        return begin(colour, flow, camX, camY, camZ, null);
+    }
+
+    /** @param bounds 整批边框的世界坐标包围盒 {@code {minX,minY,minZ,maxX,maxY,maxZ}} */
+    public static boolean begin(int colour, FlowSettings flow,
+                                double camX, double camY, double camZ, double[] bounds) {
         if (!isAvailable()) {
             return false;
         }
@@ -139,6 +147,7 @@ public final class RibbonBuffer {
         cameraX = (float) camX;
         cameraY = (float) camY;
         cameraZ = (float) camZ;
+        batchBounds = bounds;
         return true;
     }
 
@@ -257,7 +266,8 @@ public final class RibbonBuffer {
                         ColorUtil.alpha(batchColour) / 255.0F);
             }
             set3f(uCamera, cameraX, cameraY, cameraZ);
-            ShaderSupport.uploadFlow(program, flow, System.currentTimeMillis(), progress);
+            ShaderSupport.uploadFlow(program, flow, System.currentTimeMillis(), progress,
+                    flowFrame(flow));
             set1f(uHalfWidthPixels, maxHalfWidth);
             uploadMatrix();
             uploadEdges();
@@ -340,6 +350,14 @@ public final class RibbonBuffer {
         if (location >= 0) {
             GL20.glUniform1f(location, value);
         }
+    }
+
+    private static ShaderSupport.FlowFrame flowFrame(FlowSettings flow) {
+        if (batchBounds == null || batchBounds.length < 6) {
+            return ShaderSupport.FlowFrame.worldUnit(flow);
+        }
+        return ShaderSupport.FlowFrame.world(flow, batchBounds[0], batchBounds[1], batchBounds[2],
+                batchBounds[3], batchBounds[4], batchBounds[5]);
     }
 
     private static void set2f(int location, int x, int y) {

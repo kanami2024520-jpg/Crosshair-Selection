@@ -56,6 +56,13 @@ BetterQuesting 把返回键写死为 Backspace。安装 BetterQuesting 时，本
 
 ## 安装
 
+每次发布提供两个 jar，**只装其中一个**：
+
+| Jar | 说明 |
+| --- | --- |
+| `crosshairselection-<version>-patched.jar` | **推荐**。包含全部功能，并带 BetterQuesting 返回键补丁。 |
+| `crosshairselection-<version>-clean.jar` | 不含该补丁，适合不想多出一个可改键位的整合包。 |
+
 把 jar 放进 `mods`。需要 Forge 10.13.4.1614、GTNHLib 和 UniMixins，已在 GTNH 2.9.0-stable 测试。
 
 设置位于 **Mods → Crosshair-Selection → Config**，也可以执行 `/csc`。

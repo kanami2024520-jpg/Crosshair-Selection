@@ -280,7 +280,7 @@ public class ConfigScreen extends SettingsScreen {
                 CrosshairConfig.height, false, "crosshairselection.height", this), colW), crosshairOn);
         add(left.place(new OptionSlider(CROSSHAIR_GAP, 0, 0, colW, 18, 0.0F, 50.0F,
                 CrosshairConfig.gap, false, "crosshairselection.gap", this), colW), crosshairOn);
-        add(left.place(new OptionSlider(CROSSHAIR_THICKNESS, 0, 0, colW, 18, 0.25F, 10.0F,
+        add(left.place(new OptionSlider(CROSSHAIR_THICKNESS, 0, 0, colW, 18, 0.7F, 10.0F,
                 CrosshairConfig.thickness / 4.0F, false, "crosshairselection.thickness", this), colW), crosshairOn);
         add(left.place(new OptionSlider(CROSSHAIR_ROTATION, 0, 0, colW, 18, 0, 360,
                 CrosshairConfig.rotation, true, "crosshairselection.rotation", this), colW), crosshairOn);
@@ -615,7 +615,8 @@ public class ConfigScreen extends SettingsScreen {
                 CrosshairConfig.gap = value;
                 break;
             case CROSSHAIR_THICKNESS:
-                CrosshairConfig.thickness = Math.max(1, Math.round(value * 4.0F));
+                // 低于 0.7 GUI 像素时线条不足一个物理像素，观感已经不可控，直接钳住。
+                CrosshairConfig.thickness = Math.max(3, Math.round(value * 4.0F));
                 break;
             case CROSSHAIR_ROTATION:
                 CrosshairConfig.rotation = Math.round(value);

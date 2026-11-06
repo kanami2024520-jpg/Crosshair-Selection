@@ -105,6 +105,7 @@ crosshairselection.flow.motion.linear=线性匀速
 crosshairselection.flow.motion.cosine=余弦缓动
 crosshairselection.flow.motion.triangle=三角波往返
 crosshairselection.flow.motion.noise=柏林噪声
+crosshairselection.flow.motion.glitch=量子闪烁
 crosshairselection.flow_progress=扫光进度：%s
 crosshairselection.back=返回
 crosshairselection.flow.group.colour=色彩
