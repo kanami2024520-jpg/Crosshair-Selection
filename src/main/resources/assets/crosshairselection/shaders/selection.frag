@@ -36,6 +36,19 @@ uniform float uFlowSoftness;
 uniform vec3 uSweepAxis;
 uniform float uSweepCentreOut;
 
+// 流光/扫光坐标系：有了原点和投影范围，「角到角」才能真正沿选中的两个角走，
+// 扫光进度也才能和形状范围对齐（以前 dot(world, axis) 是世界坐标，和 0..1 的进度对不上）。
+uniform vec3 uFlowAxis;
+uniform vec3 uFlowOrigin;
+uniform float uSweepMin;
+uniform float uSweepMax;
+uniform float uSweepRadius;
+
+// 量子闪烁（GLITCH）：相位由 Java 的 GlitchClock 积分得到，另外两个值供撕裂与扫描线使用。
+uniform float uGlitchPhase;
+uniform float uGlitchStep;
+uniform float uGlitchTime;
+
 uniform float uDebugSolid;          // 预留的调试开关（Java 端会上传，当前不改变输出）
 
 varying float vEdge;
@@ -64,7 +77,10 @@ float valueNoise(vec2 p) {
 // 会让一个周期只跨几个噪声格，观感是整格跳变。
 float motionPhase(float x, int mode, vec2 position) {
     if (mode == 1) {
-        return 0.5 - 0.5 * cos(6.28318530718 * x);
+        // 单向流动，速度平滑变化：单调递增的余弦缓动。
+        // 以前这里是 0.5 - 0.5cos(2πx)，和三角波一样是往复振荡，观感几乎一样。
+        float w = fract(x);
+        return w - sin(6.28318530718 * w) / 6.28318530718;
     }
     if (mode == 2) {
         return abs(fract(x) * 2.0 - 1.0);
@@ -77,9 +93,63 @@ float motionPhase(float x, int mode, vec2 position) {
     return fract(x);
 }
 
+float hash11(float p) {
+    p = fract(p * 0.1031);
+    p *= p + 33.33;
+    p *= p + p;
+    return fract(p);
+}
+
 vec3 hsvToRgb(vec3 c) {
     vec3 p = abs(fract(c.xxx + vec3(1.0, 2.0 / 3.0, 1.0 / 3.0)) * 6.0 - 3.0);
     return c.z * mix(vec3(1.0), clamp(p - 1.0, 0.0, 1.0), clamp(c.y, 0.0, 1.0));
+}
+
+/** 流光/扫光的取样坐标：角到角沿方向轴投影，中心向外用半径。 */
+float flowCoord(vec3 world) {
+    if (uSweepCentreOut > 0.5) {
+        return length(world - uFlowOrigin);
+    }
+    return dot(world - uFlowOrigin, uFlowAxis);
+}
+
+/** GLITCH 的区块撕裂：把 Y 轴切成 8..12 条，随机把其中几条整体横向错位。 */
+float glitchShift(vec3 world) {
+    float bands = 8.0 + floor(hash11(uGlitchStep * 0.37) * 5.0);
+    float band = floor(world.y * bands);
+    if (hash11(uGlitchStep * 17.0 + band) > 0.72) {
+        return (hash11(uGlitchStep * 5.0 + band) - 0.5) * 1.6;
+    }
+    return 0.0;
+}
+
+/** 给定空间位置返回流光颜色；GLITCH 用积分相位与撕裂坐标。 */
+vec3 flowSample(vec3 world) {
+    if (uFlowMotion > 3.5) {
+        vec3 torn = world;
+        torn.x += glitchShift(world);
+        float coord = flowCoord(torn);
+        return hsvToRgb(vec3(
+                fract(uFlowColour.x + fract(coord * uFlowDensity + uGlitchPhase) * uFlowColour.y),
+                uFlowColour.z, uFlowColour.w));
+    }
+
+    float phase = motionPhase(uFlowPhase, int(uFlowMotion), world.xz * 40.0);
+    float coord = flowCoord(world);
+    vec3 flow = hsvToRgb(vec3(
+            fract(uFlowColour.x + fract(coord * uFlowDensity + phase) * uFlowColour.y),
+            uFlowColour.z, uFlowColour.w));
+
+    if (uFlowMode > 1.5) {
+        // 扫光：把投影归一化到 0..1，进度才和形状范围对齐。
+        float along = uSweepCentreOut > 0.5
+                ? coord / max(uSweepRadius, 0.0001)
+                : (coord - uSweepMin) / max(uSweepMax - uSweepMin, 0.0001);
+        float d = along - uFlowProgress;
+        float mask = d <= 0.0 ? 1.0 : 1.0 - smoothstep(0.0, max(uFlowSoftness, 0.001), d);
+        flow = mix(uColour.rgb, flow, mask);
+    }
+    return flow;
 }
 
 void main() {
@@ -117,18 +187,17 @@ void main() {
     vec3 rgb = uColour.rgb;
 
     if (uFlowMode > 0.5) {
-        float phase = motionPhase(uFlowPhase, int(uFlowMotion), world.xz * 40.0);
-        float band = dot(world, vec3(0.57735027)) * uFlowDensity;
-        vec3 flow = hsvToRgb(vec3(fract(uFlowColour.x + fract(band + phase) * uFlowColour.y),
-                uFlowColour.z, uFlowColour.w));
-        if (uFlowMode > 1.5) {
-            // 扫光：沿轴（或从中心向外）推进的遮罩，遮罩外显示基色。
-            float along = uSweepCentreOut > 0.5 ? abs(t * 2.0 - 1.0) : dot(world, uSweepAxis);
-            float d = along - uFlowProgress;
-            float mask = d <= 0.0 ? 1.0 : 1.0 - smoothstep(0.0, max(uFlowSoftness, 0.001), d);
-            flow = mix(uColour.rgb, flow, mask);
+        if (uFlowMotion > 3.5) {
+            // RGB 色差：R/B 通道分别向两侧偏移 0.01..0.03。
+            float split = 0.01 + hash11(uGlitchStep * 3.0) * 0.02;
+            rgb = vec3(flowSample(world + vec3(split, 0.0, 0.0)).r,
+                       flowSample(world).g,
+                       flowSample(world - vec3(split, 0.0, 0.0)).b);
+            // 极短闪烁：高频扫描线。
+            rgb *= 0.72 + 0.28 * sin(world.y * 50.0 + uGlitchTime * 30.0);
+        } else {
+            rgb = flowSample(world);
         }
-        rgb = flow;
     }
 
     gl_FragColor = vec4(rgb, uColour.a * body);

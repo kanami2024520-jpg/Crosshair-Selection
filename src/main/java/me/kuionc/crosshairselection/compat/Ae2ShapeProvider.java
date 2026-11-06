@@ -58,9 +58,6 @@ public final class Ae2ShapeProvider implements ShapeProvider {
     private static final Constructor<?> HELPER_CONSTRUCTOR = constructorOrNull(BUS_HELPER,
             List.class, ForgeDirection.class, Entity.class, boolean.class);
 
-    /** 命中测试时把盒子略微放大，抵消射线端点正好落在盒面上的浮点误差。 */
-    private static final double HIT_EPSILON = 1.0E-3D;
-
     @Override
     public boolean collect(World world, int x, int y, int z, Block block,
                            MovingObjectPosition target, List<OutlineShape> out) {
@@ -162,7 +159,12 @@ public final class Ae2ShapeProvider implements ShapeProvider {
     }
 
     /**
-     * 命中测试：命中点必须落在（略微放大的）盒子内，入射距离取所有命中盒子中最小的。
+     * 命中评分：取命中点到该部件所有盒子的最小距离（在盒内为 0）。
+     *
+     * <p>以前要求「命中点必须严格落在盒内」，只要射线端点稍微跑到盒外一点
+     * （玻璃线 + 样板终端这种组合常见），所有候选都会被判为未命中，
+     * 于是退回整条总线的并集，表现成「面板和线一起被选上」。
+     * 现在改为按距离取最近：哪怕点在盒外，也只会选中离它最近的那一个部件。
      */
     private static Candidate hitTest(List<AxisAlignedBB> boxes, Vec3 localHit, boolean sidePart) {
         if (boxes.isEmpty() || localHit == null) {
@@ -170,29 +172,17 @@ public final class Ae2ShapeProvider implements ShapeProvider {
         }
         double nearest = Double.MAX_VALUE;
         for (AxisAlignedBB box : boxes) {
-            if (!contains(box, localHit)) {
-                continue;
-            }
-            // 命中点到盒子表面的距离：命中点通常就在被射线击中的那个盒子的面上，
-            // 因此这个值可以作为「谁在最外面」的可靠依据。
-            nearest = Math.min(nearest, surfaceDistance(box, localHit));
-        }
-        if (nearest == Double.MAX_VALUE) {
-            return null;
+            nearest = Math.min(nearest, distanceToBox(box, localHit));
         }
         return new Candidate(boxes, nearest, sidePart);
     }
 
-    private static boolean contains(AxisAlignedBB box, Vec3 point) {
-        return point.xCoord >= box.minX - HIT_EPSILON && point.xCoord <= box.maxX + HIT_EPSILON
-                && point.yCoord >= box.minY - HIT_EPSILON && point.yCoord <= box.maxY + HIT_EPSILON
-                && point.zCoord >= box.minZ - HIT_EPSILON && point.zCoord <= box.maxZ + HIT_EPSILON;
-    }
-
-    private static double surfaceDistance(AxisAlignedBB box, Vec3 point) {
-        return Math.min(Math.min(Math.abs(point.xCoord - box.minX), Math.abs(point.xCoord - box.maxX)),
-                Math.min(Math.min(Math.abs(point.yCoord - box.minY), Math.abs(point.yCoord - box.maxY)),
-                        Math.min(Math.abs(point.zCoord - box.minZ), Math.abs(point.zCoord - box.maxZ))));
+    /** 点到 AABB 的距离；点在盒内时为 0。 */
+    private static double distanceToBox(AxisAlignedBB box, Vec3 point) {
+        double dx = Math.max(0.0D, Math.max(box.minX - point.xCoord, point.xCoord - box.maxX));
+        double dy = Math.max(0.0D, Math.max(box.minY - point.yCoord, point.yCoord - box.maxY));
+        double dz = Math.max(0.0D, Math.max(box.minZ - point.zCoord, point.zCoord - box.maxZ));
+        return Math.sqrt(dx * dx + dy * dy + dz * dz);
     }
 
     /**

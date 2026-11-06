@@ -105,6 +105,7 @@ crosshairselection.flow.motion.linear=Linear
 crosshairselection.flow.motion.cosine=Cosine Ease
 crosshairselection.flow.motion.triangle=Triangle
 crosshairselection.flow.motion.noise=Perlin Noise
+crosshairselection.flow.motion.glitch=Glitch
 crosshairselection.flow_progress=Sweep Progress: %s
 crosshairselection.back=Back
 crosshairselection.flow.group.colour=Colour

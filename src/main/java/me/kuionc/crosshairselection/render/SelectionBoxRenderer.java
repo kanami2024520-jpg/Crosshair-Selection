@@ -1,11 +1,9 @@
 package me.kuionc.crosshairselection.render;
 
-import com.gtnewhorizon.gtnhlib.client.renderer.TessellatorManager;
 import me.kuionc.crosshairselection.config.SelectionBoxConfig;
 import me.kuionc.crosshairselection.util.ColorUtil;
 import net.minecraft.block.Block;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.renderer.Tessellator;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.util.AxisAlignedBB;
 import net.minecraft.util.MovingObjectPosition;
@@ -125,10 +123,15 @@ public final class SelectionBoxRenderer {
 
         // The sweep progress is frame-wide, so it is resolved once before the ribbon batch opens.
         RibbonBuffer.setProgress(sweepProgress());
+        // 填充先画完再画描边：否则多形状时后一个形状的填充会盖住前一个的边框，
+        // 在关闭深度测试（透视模式）或光影下尤其明显。
+        double[] bounds = boundsOf(shapes);
+        drawFills(shapes, innerColour, drawCameraX, drawCameraY, drawCameraZ, bounds);
+
         boolean ribbons = RibbonBuffer.begin(colour, SelectionBoxConfig.flow,
-                drawCameraX, drawCameraY, drawCameraZ);
+                drawCameraX, drawCameraY, drawCameraZ, bounds);
         for (OutlineShape shape : shapes) {
-            drawShape(shape, drawCameraX, drawCameraY, drawCameraZ, colour, innerColour, thickness,
+            drawOutline(shape, drawCameraX, drawCameraY, drawCameraZ, colour, thickness,
                     flow, flowTime, flowSpeed);
         }
         if (ribbons) {
@@ -161,9 +164,96 @@ public final class SelectionBoxRenderer {
         return SelectionBoxConfig.flow.progress;
     }
 
-    private static void drawShape(OutlineShape shape, double cameraX, double cameraY, double cameraZ,
-                                  int outlineColour, int innerColour, float thickness,
-                                  boolean flow, long flowTime, float flowSpeed) {
+    /** 只画填充的那一趟；几何与描边共用同一批形状。 */
+    private static void drawFills(List<OutlineShape> shapes, int innerColour,
+                                  double cameraX, double cameraY, double cameraZ,
+                                  double[] bounds) {
+        if (!SelectionBoxConfig.showFill || ColorUtil.alpha(innerColour) <= 2
+                || !FillBuffer.begin(innerColour, SelectionBoxConfig.flow,
+                cameraX, cameraY, cameraZ, bounds)) {
+            return;
+        }
+        double margin = Math.max(0.0D, SelectionBoxConfig.outlineMargin);
+        for (OutlineShape shape : shapes) {
+            if (shape.getKind() != OutlineShape.Kind.BOX || !shape.isFill()) {
+                continue;
+            }
+            AxisAlignedBB box = shape.getBox();
+            if (margin > 0.0D) {
+                box = BoxUtil.expandWithinBlock(box, margin);
+            }
+            FillBuffer.addBox(box);
+        }
+        FillBuffer.end();
+    }
+
+    /**
+     * 所有形状的世界坐标包围盒，供流光/扫光把自己的进度映射到形状范围上。
+     * 返回 {@code {minX,minY,minZ,maxX,maxY,maxZ}}，没有形状时返回 null。
+     */
+    private static double[] boundsOf(List<OutlineShape> shapes) {
+        double minX = Double.MAX_VALUE;
+        double minY = Double.MAX_VALUE;
+        double minZ = Double.MAX_VALUE;
+        double maxX = -Double.MAX_VALUE;
+        double maxY = -Double.MAX_VALUE;
+        double maxZ = -Double.MAX_VALUE;
+        for (OutlineShape shape : shapes) {
+            if (shape.getKind() == OutlineShape.Kind.CYLINDER) {
+                double[] box = cylinderBounds(shape);
+                minX = Math.min(minX, box[0]);
+                minY = Math.min(minY, box[1]);
+                minZ = Math.min(minZ, box[2]);
+                maxX = Math.max(maxX, box[3]);
+                maxY = Math.max(maxY, box[4]);
+                maxZ = Math.max(maxZ, box[5]);
+            } else if (shape.getKind() == OutlineShape.Kind.UNION) {
+                for (AxisAlignedBB box : shape.getBoxes()) {
+                    minX = Math.min(minX, box.minX);
+                    minY = Math.min(minY, box.minY);
+                    minZ = Math.min(minZ, box.minZ);
+                    maxX = Math.max(maxX, box.maxX);
+                    maxY = Math.max(maxY, box.maxY);
+                    maxZ = Math.max(maxZ, box.maxZ);
+                }
+            } else {
+                AxisAlignedBB box = shape.getBox();
+                minX = Math.min(minX, box.minX);
+                minY = Math.min(minY, box.minY);
+                minZ = Math.min(minZ, box.minZ);
+                maxX = Math.max(maxX, box.maxX);
+                maxY = Math.max(maxY, box.maxY);
+                maxZ = Math.max(maxZ, box.maxZ);
+            }
+        }
+        if (minX > maxX) {
+            return null;
+        }
+        return new double[]{minX, minY, minZ, maxX, maxY, maxZ};
+    }
+
+    private static double[] cylinderBounds(OutlineShape shape) {
+        double[] min = {Double.MAX_VALUE, Double.MAX_VALUE, Double.MAX_VALUE};
+        double[] max = {-Double.MAX_VALUE, -Double.MAX_VALUE, -Double.MAX_VALUE};
+        int axis = shape.getAxis();
+        double radius = shape.getRadius();
+        for (int end = 0; end < 2; end++) {
+            double along = end == 0 ? shape.getAxisMin() : shape.getAxisMax();
+            for (int i = 0; i < 8; i++) {
+                double[] point = cylinderPoint(axis, along, shape.getCenter1(), shape.getCenter2(),
+                        radius, Math.PI * 2.0D * i / 8.0D);
+                for (int a = 0; a < 3; a++) {
+                    min[a] = Math.min(min[a], point[a]);
+                    max[a] = Math.max(max[a], point[a]);
+                }
+            }
+        }
+        return new double[]{min[0], min[1], min[2], max[0], max[1], max[2]};
+    }
+
+    private static void drawOutline(OutlineShape shape, double cameraX, double cameraY, double cameraZ,
+                                    int outlineColour, float thickness,
+                                    boolean flow, long flowTime, float flowSpeed) {
         double margin = Math.max(0.0D, SelectionBoxConfig.outlineMargin);
         if (shape.getKind() == OutlineShape.Kind.UNION) {
             UnionOutlineRenderer.draw(shape.getBoxes(), cameraX, cameraY, cameraZ,
@@ -174,12 +264,6 @@ public final class SelectionBoxRenderer {
             AxisAlignedBB box = shape.getBox();
             if (margin > 0.0D) {
                 box = BoxUtil.expandWithinBlock(box, margin);
-            }
-            // The outline renderer subtracts the camera itself, so it receives the world-space box.
-            // Only the fill path wants camera-relative coordinates.
-            if (shape.isFill() && SelectionBoxConfig.showFill && ColorUtil.alpha(innerColour) > 2) {
-                drawFilled(box.getOffsetBoundingBox(-cameraX, -cameraY, -cameraZ),
-                        innerColour, flow, flowTime, flowSpeed, cameraX, cameraY, cameraZ);
             }
             ThickLineRenderer.drawBox3D(box, cameraX, cameraY, cameraZ, outlineColour, thickness);
         } else {
@@ -228,68 +312,6 @@ public final class SelectionBoxRenderer {
             return new double[]{c1 + u, along, c2 + v};
         }
         return new double[]{c1 + u, c2 + v, along};
-    }
-
-    private static void drawFilled(AxisAlignedBB box, int colour, boolean flow, long flowTime,
-                                   float flowSpeed, double cameraX, double cameraY, double cameraZ) {
-        if (flow) {
-            FlowRenderer.drawFilledBox3D(box.getOffsetBoundingBox(cameraX, cameraY, cameraZ),
-                    cameraX, cameraY, cameraZ, colour, flowTime, flowSpeed, 6);
-            return;
-        }
-        RenderHelper.setColor(colour);
-        Tessellator tessellator = TessellatorManager.get();
-        tessellator.startDrawingQuads();
-        quad(tessellator, box.minX, box.minY, box.minZ, box.maxX, box.minY, box.minZ,
-                box.maxX, box.minY, box.maxZ, box.minX, box.minY, box.maxZ,
-                colour, flow, flowTime, flowSpeed, cameraX, cameraY, cameraZ);
-        quad(tessellator, box.minX, box.maxY, box.minZ, box.minX, box.maxY, box.maxZ,
-                box.maxX, box.maxY, box.maxZ, box.maxX, box.maxY, box.minZ,
-                colour, flow, flowTime, flowSpeed, cameraX, cameraY, cameraZ);
-        quad(tessellator, box.minX, box.minY, box.minZ, box.minX, box.maxY, box.minZ,
-                box.maxX, box.maxY, box.minZ, box.maxX, box.minY, box.minZ,
-                colour, flow, flowTime, flowSpeed, cameraX, cameraY, cameraZ);
-        quad(tessellator, box.minX, box.minY, box.maxZ, box.maxX, box.minY, box.maxZ,
-                box.maxX, box.maxY, box.maxZ, box.minX, box.maxY, box.maxZ,
-                colour, flow, flowTime, flowSpeed, cameraX, cameraY, cameraZ);
-        quad(tessellator, box.minX, box.minY, box.minZ, box.minX, box.minY, box.maxZ,
-                box.minX, box.maxY, box.maxZ, box.minX, box.maxY, box.minZ,
-                colour, flow, flowTime, flowSpeed, cameraX, cameraY, cameraZ);
-        quad(tessellator, box.maxX, box.minY, box.minZ, box.maxX, box.maxY, box.minZ,
-                box.maxX, box.maxY, box.maxZ, box.maxX, box.minY, box.maxZ,
-                colour, flow, flowTime, flowSpeed, cameraX, cameraY, cameraZ);
-        tessellator.draw();
-    }
-
-    private static void quad(Tessellator tessellator,
-                             double x1, double y1, double z1, double x2, double y2, double z2,
-                             double x3, double y3, double z3, double x4, double y4, double z4,
-                             int colour, boolean flow, long flowTime, float flowSpeed,
-                             double cameraX, double cameraY, double cameraZ) {
-        if (flow) {
-            int alpha = ColorUtil.alpha(colour);
-            RenderHelper.setVertexColor(tessellator,
-                    Rainbow.colorAt(x1 + cameraX, y1 + cameraY, z1 + cameraZ, flowTime, flowSpeed, alpha));
-        }
-        tessellator.addVertexWithUV(x1, y1, z1, 0.5D, 0.5D);
-        if (flow) {
-            int alpha = ColorUtil.alpha(colour);
-            RenderHelper.setVertexColor(tessellator,
-                    Rainbow.colorAt(x2 + cameraX, y2 + cameraY, z2 + cameraZ, flowTime, flowSpeed, alpha));
-        }
-        tessellator.addVertexWithUV(x2, y2, z2, 0.5D, 0.5D);
-        if (flow) {
-            int alpha = ColorUtil.alpha(colour);
-            RenderHelper.setVertexColor(tessellator,
-                    Rainbow.colorAt(x3 + cameraX, y3 + cameraY, z3 + cameraZ, flowTime, flowSpeed, alpha));
-        }
-        tessellator.addVertexWithUV(x3, y3, z3, 0.5D, 0.5D);
-        if (flow) {
-            int alpha = ColorUtil.alpha(colour);
-            RenderHelper.setVertexColor(tessellator,
-                    Rainbow.colorAt(x4 + cameraX, y4 + cameraY, z4 + cameraZ, flowTime, flowSpeed, alpha));
-        }
-        tessellator.addVertexWithUV(x4, y4, z4, 0.5D, 0.5D);
     }
 
     private static void resetSmooth() {

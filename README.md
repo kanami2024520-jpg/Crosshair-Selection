@@ -63,6 +63,13 @@ Text fields still delete characters normally.
 
 ## Install
 
+Every release ships two jars. Pick **one**:
+
+| Jar | Contents |
+| --- | --- |
+| `crosshairselection-<version>-patched.jar` | **Recommended.** Everything below, plus the BetterQuesting back-key patch. |
+| `crosshairselection-<version>-clean.jar` | The mod without that patch, for packs that do not want another rebindable key. |
+
 Put the jar in `mods`. Requires Forge 10.13.4.1614, GTNHLib and UniMixins. Tested on GTNH
 2.9.0-stable.
 

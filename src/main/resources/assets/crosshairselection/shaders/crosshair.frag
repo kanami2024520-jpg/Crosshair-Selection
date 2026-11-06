@@ -11,6 +11,11 @@
 //   - 反馈与蓄力的数值都是 0..1，由 CrosshairFeedback / TicCrosshairCompat 提供。
 
 // 余弦缓动：两端慢、中间快。
+// 量子闪烁。相位由 Java 的 GlitchClock 积分得到，另外两个值供撕裂与扫描线使用。
+uniform float uGlitchPhase;
+uniform float uGlitchStep;
+uniform float uGlitchTime;
+
 float easeCosine(float x) {
     return 0.5 - 0.5 * cos(6.28318530718 * x);
 }
@@ -45,7 +50,9 @@ float flowNoise(vec2 p) {
 // 时间曲线，mode 与 FlowSettings.Motion 的序号一致：0 线性 / 1 余弦 / 2 三角 / 3 噪声
 float motionPhase(float x, int mode, vec2 position) {
     if (mode == 1) {
-        return 0.5 - 0.5 * cos(6.28318530718 * x);
+        // 单向流动，速度平滑变化：单调递增的余弦缓动。
+        float w = fract(x);
+        return w - sin(6.28318530718 * w) / 6.28318530718;
     }
     if (mode == 2) {
         return abs(fract(x) * 2.0 - 1.0);
@@ -76,6 +83,32 @@ vec3 hsvToRgb(vec3 c) {
 vec3 flowColour(float phase, vec2 position, vec4 colourParams, float density) {
     float band = dot(position, vec2(0.01)) * density;
     float t = colourParams.x + fract(band + phase) * colourParams.y;
+    return hsvToRgb(vec3(fract(t), colourParams.z, colourParams.w));
+}
+
+float hash11(float p) {
+    p = fract(p * 0.1031);
+    p *= p + 33.33;
+    p *= p + p;
+    return fract(p);
+}
+
+/** GLITCH 区块撕裂：按屏幕 Y 切条，随机把几条整体横向错位。 */
+float glitchShift(vec2 p) {
+    float bands = 8.0 + floor(hash11(uGlitchStep * 0.37) * 5.0);
+    float band = floor(p.y / 16.0 * bands);
+    if (hash11(uGlitchStep * 17.0 + band) > 0.72) {
+        return (hash11(uGlitchStep * 5.0 + band) - 0.5) * 48.0;
+    }
+    return 0.0;
+}
+
+/** GLITCH 取色：先按条带错位，再用积分相位取色带。 */
+vec3 glitchColour(vec2 p, vec4 colourParams, float density) {
+    vec2 torn = p;
+    torn.x += glitchShift(p);
+    float band = dot(torn, vec2(0.01)) * density;
+    float t = colourParams.x + fract(band + uGlitchPhase) * colourParams.y;
     return hsvToRgb(vec3(fract(t), colourParams.z, colourParams.w));
 }
 
@@ -208,6 +241,17 @@ void main() {
     float alpha = uColour.a * body;
 
     if (uFlowMode > 0.5) {
+        vec2 rel = screen - uCentre;
+        if (uFlowMotion > 3.5) {
+            // RGB 色差 + 高频扫描线。
+            float split = 0.01 + hash11(uGlitchStep * 3.0) * 0.02;
+            rgb = vec3(glitchColour(rel + vec2(split * 16.0, 0.0), uFlowColour, uFlowDensity).r,
+                       glitchColour(rel, uFlowColour, uFlowDensity).g,
+                       glitchColour(rel - vec2(split * 16.0, 0.0), uFlowColour, uFlowDensity).b);
+            rgb *= 0.72 + 0.28 * sin(rel.y / 16.0 * 50.0 + uGlitchTime * 30.0);
+            alpha = uColour.a * body;
+            // 跳过下面的常规流光分支。
+        } else {
         float phase = motionPhase(uFlowPhase, int(uFlowMotion), screen * 0.01);
         vec3 flow = flowColour(phase, screen - uCentre, uFlowColour, uFlowDensity);
 
@@ -232,6 +276,7 @@ void main() {
 
         rgb = flow;
         alpha = uColour.a * body;
+        }
     }
 
     if (uOutline > 0.0) {

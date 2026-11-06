@@ -1,92 +1,155 @@
 package me.kuionc.crosshairselection.render;
 
 import me.kuionc.crosshairselection.config.FlowSettings;
-import me.kuionc.crosshairselection.config.GtOverlayConfig;
-import me.kuionc.crosshairselection.config.GtXStyle;
-
-import java.util.List;
+import me.kuionc.crosshairselection.util.ColorUtil;
 
 /**
- * CPU mirror of {@code selection.frag} used by the settings preview.
+ * CPU mirror of {@code selection.frag}, used by the settings preview.
  *
- * <p>The preview cannot run the world shader, so it reproduces the same hue formula: the band
- * coordinate is the dot product of the world position with the diagonal, scaled by the band
- * density, plus the animated phase. Sampling this along each previewed segment keeps the colour
- * sweep in the preview pointing the way it does in game.
+ * <p>预览画不了世界着色器，所以这里复刻同一套公式：方向轴、原点、投影范围、
+ * 扫光归一化，以及「量子闪烁」的撕裂、色差与扫描线。采样点沿预览线段
+ * 逐段求值，方向与游戏中保持一致。
  */
 public final class FlowPreview {
 
-    private static final double INV_SQRT3 = 0.5773502691896258D;
+    /** 预览立方体的半对角线长度，用于把扫光进度映射到形状范围。 */
+    private static final double HALF_DIAGONAL = Math.sqrt(3.0D) * 0.5D;
 
     private FlowPreview() {
     }
 
     /**
-     * Colour at a camera-independent world position.
+     * 颜色采样。
      *
-     * @param flow    settings; may be null or OFF, which returns the base colour
-     * @param baseColour ARGB used when the flow is inactive
-     * @param now     milliseconds timestamp
-     * @param t       0..1 position along the previewed segment, used by the centre-out sweep
+     * @param flow       设置；null 或 OFF 时返回基色
+     * @param baseColour 未启用流光时的 ARGB
+     * @param now        毫秒时间戳
+     * @param t          预览线段上的 0..1 位置（旧参数，保留兼容）
      */
     public static int colourAt(FlowSettings flow, int baseColour, long now,
                                double worldX, double worldY, double worldZ, double t) {
         if (flow == null || flow.mode == FlowSettings.Mode.OFF) {
             return baseColour;
         }
-        float phase = motionPhase(phase(flow, now), flow.motion, (float) worldX, (float) worldZ);
-        double band = (worldX + worldY + worldZ) * INV_SQRT3 * flow.bandDensity;
-        double hue = fract(flow.hueStart + fract(band + phase) * flow.hueRange);
-        int rgb = me.kuionc.crosshairselection.util.ColorUtil.hsbToRgb(
-                (float) hue, flow.saturation, flow.brightness);
+        int alpha = ColorUtil.alpha(baseColour);
+        double phase = flow.motion == FlowSettings.Motion.GLITCH
+                ? GlitchClock.phase(flow, now)
+                : motionPhase(ShaderSupport.phase(flow, now), flow.motion,
+                (float) worldX, (float) worldZ);
 
-        if (flow.mode == FlowSettings.Mode.SWEEP) {
-            double along = flow.direction == FlowSettings.Direction.CENTER_OUT
-                    ? Math.abs(t * 2.0D - 1.0D)
-                    : sweepAlong(flow, worldX, worldY, worldZ);
-            double d = along - flow.progress;
-            double softness = Math.max(flow.sweepSoftness, 0.001D);
-            double mask = d <= 0.0D ? 1.0D : 1.0D - smoothstep(0.0D, softness, d);
-            rgb = mix(baseColour & 0xFFFFFF, rgb, mask);
+        int rgb;
+        if (flow.motion == FlowSettings.Motion.GLITCH) {
+            long step = now / GlitchClock.STEP_MILLIS;
+            double split = 0.01D + hash(step * 3L) * 0.02D;
+            double tornX = worldX + glitchShift(step, worldY);
+            int red = hue(flow, phase, tornX + split, worldY, worldZ);
+            int green = hue(flow, phase, tornX, worldY, worldZ);
+            int blue = hue(flow, phase, tornX - split, worldY, worldZ);
+            double flicker = 0.72D + 0.28D * Math.sin((worldY + 0.5D) * 50.0D
+                    + now * 0.001D * 30.0D);
+            rgb = pack(
+                    scale(red >>> 16 & 255, flicker),
+                    scale(green >>> 8 & 255, flicker),
+                    scale(blue & 255, flicker));
+        } else {
+            double coord = coordinate(flow, worldX, worldY, worldZ);
+            rgb = hueAt(flow, phase, coord);
+            if (flow.mode == FlowSettings.Mode.SWEEP) {
+                double along = along(flow, coord);
+                double d = along - flow.progress;
+                double softness = Math.max(flow.sweepSoftness, 0.001D);
+                double mask = d <= 0.0D ? 1.0D : 1.0D - smoothstep(0.0D, softness, d);
+                rgb = mix(baseColour & 0xFFFFFF, rgb, mask);
+            }
         }
-        return (baseColour & 0xFF000000) | (rgb & 0xFFFFFF);
+        return (alpha << 24) | (rgb & 0xFFFFFF);
     }
 
-    /** Phases a solid colour the way the shader does, for single-colour previews. */
+    /** 相位的单色取值，供纯色预览使用。 */
     public static int solidColour(FlowSettings flow, int baseColour, long now) {
         return colourAt(flow, baseColour, now, 0.0D, 0.0D, 0.0D, 0.5D);
     }
 
-    private static double sweepAlong(FlowSettings flow, double x, double y, double z) {
-        float[] axis = ShaderSupport.sweepAxis(flow);
+    private static int hue(FlowSettings flow, double phase, double x, double y, double z) {
+        return hueAt(flow, phase, coordinate(flow, x, y, z));
+    }
+
+    private static int hueAt(FlowSettings flow, double phase, double coord) {
+        double hue = fract(flow.hueStart + fract(coord * flow.bandDensity + phase) * flow.hueRange);
+        return ColorUtil.hsbToRgb((float) hue, flow.saturation, flow.brightness) & 0xFFFFFF;
+    }
+
+    /** 流光坐标系里的取样坐标：角到角沿方向轴投影，中心向外用半径。 */
+    private static double coordinate(FlowSettings flow, double x, double y, double z) {
+        if (flow.direction == FlowSettings.Direction.CENTER_OUT) {
+            return Math.sqrt(x * x + y * y + z * z);
+        }
+        float[] axis = ShaderSupport.FlowFrame.axisFor(flow);
         return x * axis[0] + y * axis[1] + z * axis[2];
     }
 
-    private static float phase(FlowSettings flow, long now) {
-        return ShaderSupport.phase(flow, now);
+    /** 扫光进度归一化到 0..1。 */
+    private static double along(FlowSettings flow, double coord) {
+        if (flow.direction == FlowSettings.Direction.CENTER_OUT) {
+            return coord / HALF_DIAGONAL;
+        }
+        return (coord + HALF_DIAGONAL) / (2.0D * HALF_DIAGONAL);
+    }
+
+    private static double glitchShift(long step, double y) {
+        double bands = 8.0D + Math.floor(hash(step * 37L) * 5.0D);
+        double band = Math.floor((y + 0.5D) * bands);
+        if (hash(step * 17L + (long) band) > 0.72D) {
+            return (hash(step * 5L + (long) band) - 0.5D) * 1.6D;
+        }
+        return 0.0D;
     }
 
     private static float motionPhase(float x, FlowSettings.Motion motion, float px, float pz) {
         switch (motion) {
             case COSINE:
-                return (float) (0.5D - 0.5D * Math.cos(6.283185307179586D * x));
+                // 单向流动，速度平滑变化：单调递增的余弦缓动。
+                // 以前用的是 0.5 - 0.5cos(2πx)，和三角波一样是往复振荡，观感几乎一样。
+                double wrapped = x - Math.floor(x);
+                return (float) (wrapped - Math.sin(6.283185307179586D * wrapped)
+                        / 6.283185307179586D);
             case TRIANGLE:
                 return Math.abs((float) (x - Math.floor(x)) * 2.0F - 1.0F);
             case NOISE:
-                // Mirrors the shader: a triangle-wave time axis sampled diagonally in noise space.
                 float t = (float) (Math.abs(x - Math.floor(x)) * 2.0D - 1.0D) * 8.0F;
                 return (float) (valueNoise(px * 40.0F * 0.05F + t * 0.8F,
                         pz * 40.0F * 0.05F + t * 0.5F) * 0.65D
                         + valueNoise(px * 40.0F * 0.10F + t * 1.6F + 17.3F,
                         pz * 40.0F * 0.10F + t * 1.1F) * 0.35D);
             case LINEAR:
+            case GLITCH:
             default:
                 return (float) (x - Math.floor(x));
         }
     }
 
-    private static double fract(double value) {
-        return value - Math.floor(value);
+    private static int pack(int r, int g, int b) {
+        return (clamp(r) << 16) | (clamp(g) << 8) | clamp(b);
+    }
+
+    private static int scale(int channel, double factor) {
+        return clamp((int) Math.round(channel * factor));
+    }
+
+    private static int clamp(int value) {
+        return Math.max(0, Math.min(255, value));
+    }
+
+    private static int mix(int a, int b, double t) {
+        int ar = a >>> 16 & 255;
+        int ag = a >>> 8 & 255;
+        int ab = a & 255;
+        int br = b >>> 16 & 255;
+        int bg = b >>> 8 & 255;
+        int bb = b & 255;
+        return pack((int) Math.round(ar + (br - ar) * t),
+                (int) Math.round(ag + (bg - ag) * t),
+                (int) Math.round(ab + (bb - ab) * t));
     }
 
     private static double smoothstep(double edge0, double edge1, double x) {
@@ -94,37 +157,34 @@ public final class FlowPreview {
         return t * t * (3.0D - 2.0D * t);
     }
 
-    private static int mix(int base, int flow, double t) {
-        int r = (int) Math.round(((base >> 16) & 255) * (1.0D - t) + ((flow >> 16) & 255) * t);
-        int g = (int) Math.round(((base >> 8) & 255) * (1.0D - t) + ((flow >> 8) & 255) * t);
-        int b = (int) Math.round((base & 255) * (1.0D - t) + (flow & 255) * t);
-        return (r << 16) | (g << 8) | b;
+    private static double fract(double value) {
+        return value - Math.floor(value);
     }
 
-    private static float hash21(float x, float y) {
-        float px = (float) fract(x * 123.34F);
-        float py = (float) fract(y * 456.21F);
-        float dot = px * px + py * py + px * 45.32F + py * 45.32F;
-        px += dot;
-        py += dot;
-        return (float) fract(px * py);
+    private static float hash(long value) {
+        long x = value;
+        x = (x ^ (x >>> 33)) * 0xff51afd7ed558ccdL;
+        x = (x ^ (x >>> 33)) * 0xc4ceb9fe1a85ec53L;
+        x = x ^ (x >>> 33);
+        return (float) ((x >>> 40) / (double) (1L << 24));
     }
 
-    private static float valueNoise(float x) {
-        return valueNoise(x, x * 0.37F);
-    }
-
-    private static float valueNoise(float x, float y) {
-        float ix = (float) Math.floor(x);
-        float iy = (float) Math.floor(y);
+    private static double valueNoise(float x, float z) {
+        int ix = (int) Math.floor(x);
+        int iz = (int) Math.floor(z);
         float fx = x - ix;
-        float fy = y - iy;
+        float fz = z - iz;
         float ux = fx * fx * (3.0F - 2.0F * fx);
-        float uy = fy * fy * (3.0F - 2.0F * fy);
-        float a = hash21(ix, iy);
-        float b = hash21(ix + 1.0F, iy);
-        float c = hash21(ix, iy + 1.0F);
-        float d = hash21(ix + 1.0F, iy + 1.0F);
-        return (a + (b - a) * ux) + ((c + (d - c) * ux) - (a + (b - a) * ux)) * uy;
+        float uz = fz * fz * (3.0F - 2.0F * fz);
+        float a = hashCell(ix, iz);
+        float b = hashCell(ix + 1, iz);
+        float c = hashCell(ix, iz + 1);
+        float d = hashCell(ix + 1, iz + 1);
+        return (a + (b - a) * ux) + ((c + (d - c) * ux) - (a + (b - a) * ux)) * uz;
+    }
+
+    private static float hashCell(int x, int z) {
+        long h = (long) x * 374761393L + (long) z * 668265263L;
+        return hash(h);
     }
 }
