@@ -2,19 +2,19 @@ package me.kuionc.crosshairselection.gui;
 
 import com.gtnewhorizon.gtnhlib.config.ConfigurationManager;
 import me.kuionc.crosshairselection.config.CrosshairConfig;
+import me.kuionc.crosshairselection.config.FlowSettings;
 import me.kuionc.crosshairselection.config.SelectionBoxConfig;
 import me.kuionc.crosshairselection.gui.widgets.ColorButton;
 import me.kuionc.crosshairselection.gui.widgets.ColorCallback;
 import me.kuionc.crosshairselection.gui.widgets.OptionSlider;
 import me.kuionc.crosshairselection.gui.widgets.SliderHost;
-import me.kuionc.crosshairselection.render.CrosshairRenderer;
 import me.kuionc.crosshairselection.render.FlowRenderer;
+import me.kuionc.crosshairselection.render.CrosshairType;
 import me.kuionc.crosshairselection.render.Rainbow;
 import me.kuionc.crosshairselection.render.RenderHelper;
 import me.kuionc.crosshairselection.util.ColorUtil;
 import net.minecraft.client.gui.GuiButton;
 import net.minecraft.client.gui.GuiScreen;
-import net.minecraft.client.gui.ScaledResolution;
 import net.minecraft.client.renderer.Tessellator;
 import net.minecraft.util.AxisAlignedBB;
 import net.minecraft.util.StatCollector;
@@ -23,7 +23,7 @@ import org.lwjgl.opengl.GL11;
 /**
  * Unified settings screen: selection box and crosshair.
  */
-public class ConfigScreen extends GuiScreen implements SliderHost {
+public class ConfigScreen extends SettingsScreen {
 
     private static final int TAB_SELECTION = 100;
     private static final int TAB_CROSSHAIR = 101;
@@ -34,13 +34,9 @@ public class ConfigScreen extends GuiScreen implements SliderHost {
     private static final int SELECTION_ENABLED = 1;
     private static final int SELECTION_COLOUR = 2;
     private static final int SELECTION_THICKNESS = 3;
-    private static final int SELECTION_BLINK_ALPHA = 4;
-    private static final int SELECTION_BLINK_SPEED = 5;
     private static final int SELECTION_RAINBOW = 6;
     private static final int SELECTION_LINK = 7;
     private static final int SELECTION_HIDDEN = 8;
-    private static final int SELECTION_FILL = 9;
-    private static final int SELECTION_BLINK = 18;
     private static final int SELECTION_MARGIN = 19;
     private static final int SELECTION_RAINBOW_SPEED = 11;
     private static final int SELECTION_SMOOTH = 12;
@@ -48,6 +44,12 @@ public class ConfigScreen extends GuiScreen implements SliderHost {
     private static final int SELECTION_GT_SETTINGS = 14;
     private static final int SELECTION_TEXTURE_SIZE = 15;
     private static final int SELECTION_ANTI_ALIAS = 40;
+    private static final int SELECTION_FILL_SETTINGS = 53;
+    private static final int CROSSHAIR_VISIBILITY_SETTINGS = 54;
+    private static final int CROSSHAIR_EXTRA_SETTINGS = 55;
+    private static final int SELECTION_BREAK_PROGRESS = 42;
+    private static final int SELECTION_BREAK_STYLE = 47;
+    private static final int SELECTION_BREAK_POSITION = 56;
 
 
     private static final int CROSSHAIR_ENABLED = 20;
@@ -66,13 +68,18 @@ public class ConfigScreen extends GuiScreen implements SliderHost {
     private static final int CROSSHAIR_RAINBOW = 32;
     private static final int CROSSHAIR_RAINBOW_SPEED = 33;
     private static final int CROSSHAIR_VISIBLE = 34;
-    private static final int CROSSHAIR_VISIBLE_F1 = 35;
-    private static final int CROSSHAIR_VISIBLE_DEBUG = 36;
-    private static final int CROSSHAIR_VISIBLE_THIRD = 37;
     private static final int CROSSHAIR_TIC_CROSSHAIR = 39;
+    private static final int CROSSHAIR_ANTI_ALIAS = 41;
+    private static final int CROSSHAIR_ATTACK_FEEDBACK = 43;
+    private static final int CROSSHAIR_PLACE_FEEDBACK = 44;
+    private static final int CROSSHAIR_FEEDBACK_STRENGTH = 45;
+    private static final int CROSSHAIR_FEEDBACK_STYLE = 46;
+    private static final int CROSSHAIR_EXPAND_SPEED = 48;
+    private static final int CROSSHAIR_RETURN_SPEED = 49;
+    private static final int CROSSHAIR_BOW_FEEDBACK = 50;
+    private static final int CROSSHAIR_BOW_INDICATOR = 51;
 
     private final GuiScreen parent;
-    private final CrosshairRenderer previewRenderer = new CrosshairRenderer();
     private Snapshot snapshot;
     private int tab;
     private boolean saved;
@@ -100,16 +107,19 @@ public class ConfigScreen extends GuiScreen implements SliderHost {
         int tabGap = 2;
         int tabWidth = Math.min(120, Math.max(80, (width - 8) / 2));
         int tabStart = width / 2 - (tabWidth * 2 + tabGap) / 2;
-        buttonList.add(new GuiButton(TAB_SELECTION, tabStart, 20, tabWidth, 18,
+        int tabY = Math.max(16, Math.round(height * 0.028F));
+        int tabH = FlowLayout.tabHeight(height);
+        int footerY = FlowLayout.footerTop(height);
+        buttonList.add(new GuiButton(TAB_SELECTION, tabStart, tabY, tabWidth, tabH,
                 StatCollector.translateToLocal("crosshairselection.tab.selection")));
-        buttonList.add(new GuiButton(TAB_CROSSHAIR, tabStart + tabWidth + tabGap, 20, tabWidth, 18,
+        buttonList.add(new GuiButton(TAB_CROSSHAIR, tabStart + tabWidth + tabGap, tabY, tabWidth, tabH,
                 StatCollector.translateToLocal("crosshairselection.tab.crosshair")));
 
-        buttonList.add(new GuiButton(SAVE, width / 2 - 145, height - 26, 90, 18,
+        buttonList.add(new GuiButton(SAVE, width / 2 - 145, footerY, 90, 18,
                 StatCollector.translateToLocal("crosshairselection.save")));
-        buttonList.add(new GuiButton(CANCEL, width / 2 - 45, height - 26, 90, 18,
-                StatCollector.translateToLocal("crosshairselection.cancel")));
-        buttonList.add(new GuiButton(DEFAULTS, width / 2 + 55, height - 26, 90, 18,
+        buttonList.add(new GuiButton(CANCEL, width / 2 - 45, footerY, 90, 18,
+                StatCollector.translateToLocal("crosshairselection.back")));
+        buttonList.add(new GuiButton(DEFAULTS, width / 2 + 55, footerY, 90, 18,
                 StatCollector.translateToLocal("crosshairselection.defaults")));
 
         if (tab == 0) {
@@ -120,80 +130,187 @@ public class ConfigScreen extends GuiScreen implements SliderHost {
     }
 
     private void initSelectionButtons() {
-        int left = 4;
-        int right = width - 154;
-        int y = 46;
-        buttonList.add(toggle(SELECTION_ENABLED, left, y, "crosshairselection.enabled", SelectionBoxConfig.enabled));
-        buttonList.add(new ColorButton(SELECTION_COLOUR, left, y + 20, 150, 18, SelectionBoxConfig.colour,
-                colourLabel("crosshairselection.colour.selection_box", SelectionBoxConfig.colour)));
-        buttonList.add(new OptionSlider(SELECTION_THICKNESS, left, y + 40, 150, 18, 0.1F, 7.0F,
-                SelectionBoxConfig.thickness, false, "crosshairselection.thickness", this));
-        buttonList.add(new OptionSlider(SELECTION_BLINK_ALPHA, left, y + 60, 150, 18, 0, 255,
-                SelectionBoxConfig.blinkAlpha, true, "crosshairselection.blink_alpha", this));
-        buttonList.add(new OptionSlider(SELECTION_BLINK_SPEED, left, y + 80, 150, 18, 0.0F, 1.0F,
-                SelectionBoxConfig.blinkSpeed, false, "crosshairselection.blink_speed", this));
-        buttonList.add(rainbowButton(SELECTION_RAINBOW, left, y + 100,
-                SelectionBoxConfig.rainbow, SelectionBoxConfig.rainbowFlow));
-        buttonList.add(new OptionSlider(SELECTION_RAINBOW_SPEED, left, y + 120, 150, 18, 0, 2000,
-                SelectionBoxConfig.rainbowSpeed, true, "crosshairselection.rainbow_speed", this));
-        buttonList.add(toggle(SELECTION_LINK, right, y, "crosshairselection.link_blocks", SelectionBoxConfig.linkBlocks));
-        buttonList.add(toggle(SELECTION_HIDDEN, right, y + 20, "crosshairselection.see_through", SelectionBoxConfig.showHidden));
-        buttonList.add(toggle(SELECTION_FILL, right, y + 40, "crosshairselection.fill", SelectionBoxConfig.showFill));
-        buttonList.add(toggle(SELECTION_BLINK, right, y + 60, "crosshairselection.blink", SelectionBoxConfig.blink));
-        buttonList.add(toggle(SELECTION_SMOOTH, right, y + 80, "crosshairselection.smooth_transition",
-                SelectionBoxConfig.smoothTransition));
-        buttonList.add(new OptionSlider(SELECTION_TRANSITION, right, y + 100, 150, 18, 0.05F, 0.5F,
-                SelectionBoxConfig.transitionDuration, false, 2, "crosshairselection.transition_duration", this));
-        buttonList.add(new GuiButton(SELECTION_GT_SETTINGS, left, y + 140, 150, 18,
-                StatCollector.translateToLocal("crosshairselection.gt_overlay_settings")));
-        buttonList.add(new OptionSlider(SELECTION_MARGIN, right, y + 140, 150, 18, 0.0F, 0.25F,
+        int scale = FlowLayout.guiScale();
+        int colW = FlowLayout.columnWidth(width);
+        int rowH = FlowLayout.rowHeightFor(scale);
+        int top = FlowLayout.contentTop(height);
+        int margin = 4;
+        boolean single = FlowLayout.singleColumn(width, colW);
+
+        FlowLayout left = new FlowLayout(margin, top, colW, rowH);
+        FlowLayout right = new FlowLayout(width - colW - margin, top, colW, rowH);
+
+        Condition selectionOn = new Condition() {
+            @Override
+            public boolean test() {
+                return SelectionBoxConfig.enabled;
+            }
+        };
+        Condition flowOn = and(selectionOn, new Condition() {
+            @Override
+            public boolean test() {
+                return SelectionBoxConfig.flow.mode != FlowSettings.Mode.OFF;
+            }
+        });
+
+        int half = (colW - Math.max(2, rowH / 10)) / 2;
+
+        // 左列：外观与流动
+        add(left.place(toggle(SELECTION_ENABLED, 0, 0, "crosshairselection.enabled",
+                SelectionBoxConfig.enabled), colW));
+        add(left.place(new ColorButton(SELECTION_COLOUR, 0, 0, colW, 18, SelectionBoxConfig.colour,
+                colourLabel("crosshairselection.colour.selection_box", SelectionBoxConfig.colour)), colW),
+                selectionOn);
+        add(left.place(new OptionSlider(SELECTION_THICKNESS, 0, 0, colW, 18, 0.1F, 7.0F,
+                SelectionBoxConfig.thickness, false, "crosshairselection.thickness", this), colW),
+                selectionOn);
+        left.group();
+        add(left.place(new GuiButton(SELECTION_FILL_SETTINGS, 0, 0, colW, 18,
+                StatCollector.translateToLocal("crosshairselection.fill_settings")), colW), selectionOn);
+        add(left.place(flowButton(SELECTION_RAINBOW, 0, 0, colW, SelectionBoxConfig.flow), colW));
+        add(left.place(new OptionSlider(SELECTION_RAINBOW_SPEED, 0, 0, colW, 18, 0, 2000,
+                SelectionBoxConfig.flow.speed, true, "crosshairselection.flow_speed", this), colW), flowOn);
+        left.group();
+        add(left.place(new GuiButton(SELECTION_GT_SETTINGS, 0, 0, colW, 18,
+                StatCollector.translateToLocal("crosshairselection.gt_overlay_settings")), colW));
+
+        // 右列：行为
+        add(right.place(toggle(SELECTION_LINK, 0, 0, "crosshairselection.link_blocks",
+                SelectionBoxConfig.linkBlocks), colW), selectionOn);
+        add(right.place(toggle(SELECTION_HIDDEN, 0, 0, "crosshairselection.see_through",
+                SelectionBoxConfig.showHidden), colW), selectionOn);
+        right.group();
+        add(right.place(toggle(SELECTION_SMOOTH, 0, 0, "crosshairselection.smooth_transition",
+                SelectionBoxConfig.smoothTransition), colW), selectionOn);
+        add(right.place(new OptionSlider(SELECTION_TRANSITION, 0, 0, colW, 18, 0.05F, 0.5F,
+                SelectionBoxConfig.transitionDuration, false, 2, "crosshairselection.transition_duration", this),
+                colW), and(selectionOn, new Condition() {
+                    @Override
+                    public boolean test() {
+                        return SelectionBoxConfig.smoothTransition;
+                    }
+                }));
+        right.group();
+        add(right.place(new OptionSlider(SELECTION_MARGIN, 0, 0, colW, 18, 0.0F, 0.25F,
                 SelectionBoxConfig.outlineMargin, false, 3, 0.005F,
-                "crosshairselection.outline_margin", this));
-        buttonList.add(new GuiButton(SELECTION_TEXTURE_SIZE, left, y + 160, 150, 18,
-                textureSizeLabel()));
-        buttonList.add(toggle(SELECTION_ANTI_ALIAS, right, y + 160, 150,
-                "crosshairselection.anti_alias", SelectionBoxConfig.antiAlias));
+                "crosshairselection.outline_margin", this), colW), selectionOn);
+        // 破坏进度整组：开关、样式、位置各占一整行，文字不会被截断。
+        add(right.place(toggle(SELECTION_BREAK_PROGRESS, 0, 0, colW, "crosshairselection.break_progress",
+                SelectionBoxConfig.showBreakProgress), colW), selectionOn);
+        add(right.place(new GuiButton(SELECTION_BREAK_STYLE, 0, 0, colW, 18,
+                StatCollector.translateToLocalFormatted("crosshairselection.break_style",
+                        StatCollector.translateToLocal(SelectionBoxConfig.breakProgressStyle.getTranslationKey()))),
+                colW), new Condition() {
+                    @Override
+                    public boolean test() {
+                        return SelectionBoxConfig.enabled && SelectionBoxConfig.showBreakProgress;
+                    }
+                });
+        add(right.place(new GuiButton(SELECTION_BREAK_POSITION, 0, 0, colW, 18,
+                StatCollector.translateToLocalFormatted("crosshairselection.hud_position",
+                        StatCollector.translateToLocal(
+                                SelectionBoxConfig.breakProgressPosition.getTranslationKey()))), colW),
+                new Condition() {
+                    @Override
+                    public boolean test() {
+                        return SelectionBoxConfig.enabled && SelectionBoxConfig.showBreakProgress;
+                    }
+                });
+
+        int footer = FlowLayout.footerTop(height);
+        left.fitTo(FlowLayout.contentTop(height), footer);
+        right.fitTo(FlowLayout.contentTop(height), footer);
+        refreshEnabledStates();
     }
 
     private void initCrosshairButtons() {
-        int left = 4;
-        int right = width - 154;
-        int y = 46;
-        buttonList.add(toggle(CROSSHAIR_ENABLED, left, y, "crosshairselection.enabled", CrosshairConfig.enabled));
-        buttonList.add(new GuiButton(CROSSHAIR_TYPE, left, y + 18, 150, 18,
-                StatCollector.translateToLocalFormatted("crosshairselection.type",
-                        StatCollector.translateToLocal(CrosshairConfig.type.getTranslationKey()))));
-        buttonList.add(new ColorButton(CROSSHAIR_COLOUR, left, y + 36, 150, 18, CrosshairConfig.colour,
-                colourLabel("crosshairselection.colour.crosshair", CrosshairConfig.colour)));
-        buttonList.add(new OptionSlider(CROSSHAIR_WIDTH, left, y + 54, 150, 18, 0.0F, 50.0F,
-                CrosshairConfig.width, false, "crosshairselection.width", this));
-        buttonList.add(new OptionSlider(CROSSHAIR_HEIGHT, left, y + 72, 150, 18, 0.0F, 50.0F,
-                CrosshairConfig.height, false, "crosshairselection.height", this));
-        buttonList.add(new OptionSlider(CROSSHAIR_GAP, left, y + 90, 150, 18, 0.0F, 50.0F,
-                CrosshairConfig.gap, false, "crosshairselection.gap", this));
-        buttonList.add(new OptionSlider(CROSSHAIR_THICKNESS, left, y + 108, 150, 18, 0.25F, 10.0F,
-                CrosshairConfig.thickness / 4.0F, false, "crosshairselection.thickness", this));
-        buttonList.add(new OptionSlider(CROSSHAIR_ROTATION, left, y + 126, 150, 18, 0, 360,
-                CrosshairConfig.rotation, true, "crosshairselection.rotation", this));
-        buttonList.add(new OptionSlider(CROSSHAIR_OUTLINE_THICKNESS, left, y + 144, 150, 18, 0.0F, 2.0F,
-                CrosshairConfig.outlineThickness, false, "crosshairselection.outline_thickness", this));
+        int scale = FlowLayout.guiScale();
+        int colW = FlowLayout.columnWidth(width);
+        int rowH = FlowLayout.rowHeightFor(scale);
+        int top = FlowLayout.contentTop(height);
+        int margin = 4;
 
-        buttonList.add(toggle(CROSSHAIR_OUTLINE, right, y, "crosshairselection.outline", CrosshairConfig.outline));
-        buttonList.add(new ColorButton(CROSSHAIR_OUTLINE_COLOUR, right, y + 18, 150, 18, CrosshairConfig.outlineColour,
-                colourLabel("crosshairselection.colour.crosshair_outline", CrosshairConfig.outlineColour)));
-        buttonList.add(toggle(CROSSHAIR_DOT, right, y + 36, "crosshairselection.dot", CrosshairConfig.dot));
-        buttonList.add(new ColorButton(CROSSHAIR_DOT_COLOUR, right, y + 54, 150, 18, CrosshairConfig.dotColour,
-                colourLabel("crosshairselection.colour.crosshair_dot", CrosshairConfig.dotColour)));
-        buttonList.add(rainbowButton(CROSSHAIR_RAINBOW, right, y + 72, 96,
-                CrosshairConfig.rainbow, CrosshairConfig.rainbowFlow));
-        buttonList.add(toggle(CROSSHAIR_TIC_CROSSHAIR, right + 98, y + 72, 52,
-                "crosshairselection.tic_short", CrosshairConfig.useTicBowCrosshair));
-        buttonList.add(new OptionSlider(CROSSHAIR_RAINBOW_SPEED, right, y + 90, 150, 18, 0, 2000,
-                CrosshairConfig.rainbowSpeed, true, "crosshairselection.rainbow_speed", this));
-        buttonList.add(toggle(CROSSHAIR_VISIBLE, right, y + 108, "crosshairselection.visible", CrosshairConfig.visibleDefault));
-        buttonList.add(toggle(CROSSHAIR_VISIBLE_F1, right, y + 126, "crosshairselection.visible_f1", CrosshairConfig.visibleHiddenGui));
-        buttonList.add(toggle(CROSSHAIR_VISIBLE_DEBUG, right, y + 144, "crosshairselection.visible_debug", CrosshairConfig.visibleDebug));
-        buttonList.add(toggle(CROSSHAIR_VISIBLE_THIRD, right, y + 162, "crosshairselection.visible_third", CrosshairConfig.visibleThirdPerson));
+        FlowLayout left = new FlowLayout(margin, top, colW, rowH);
+        FlowLayout right = new FlowLayout(width - colW - margin, top, colW, rowH);
+
+        Condition crosshairOn = new Condition() {
+            @Override
+            public boolean test() {
+                return CrosshairConfig.enabled && CrosshairConfig.type != CrosshairType.DEFAULT;
+            }
+        };
+        Condition outlineOn = and(crosshairOn, new Condition() {
+            @Override
+            public boolean test() {
+                return CrosshairConfig.outline;
+            }
+        });
+        Condition dotOn = and(crosshairOn, new Condition() {
+            @Override
+            public boolean test() {
+                return CrosshairConfig.dot;
+            }
+        });
+        Condition flowOn = and(crosshairOn, new Condition() {
+            @Override
+            public boolean test() {
+                return CrosshairConfig.flow.mode != FlowSettings.Mode.OFF;
+            }
+        });
+
+        int half = (colW - Math.max(2, rowH / 10)) / 2;
+
+        // 左列：形状
+        add(left.place(toggle(CROSSHAIR_ENABLED, 0, 0, "crosshairselection.enabled",
+                CrosshairConfig.enabled), colW));
+        add(left.place(new GuiButton(CROSSHAIR_TYPE, 0, 0, colW, 18,
+                StatCollector.translateToLocalFormatted("crosshairselection.type",
+                        StatCollector.translateToLocal(CrosshairConfig.type.getTranslationKey()))), colW),
+                new Condition() {
+                    @Override
+                    public boolean test() {
+                        return CrosshairConfig.enabled;
+                    }
+                });
+        add(left.place(new ColorButton(CROSSHAIR_COLOUR, 0, 0, colW, 18, CrosshairConfig.colour,
+                colourLabel("crosshairselection.colour.crosshair", CrosshairConfig.colour)), colW), crosshairOn);
+        add(left.place(new OptionSlider(CROSSHAIR_WIDTH, 0, 0, colW, 18, 0.0F, 50.0F,
+                CrosshairConfig.width, false, "crosshairselection.width", this), colW), crosshairOn);
+        add(left.place(new OptionSlider(CROSSHAIR_HEIGHT, 0, 0, colW, 18, 0.0F, 50.0F,
+                CrosshairConfig.height, false, "crosshairselection.height", this), colW), crosshairOn);
+        add(left.place(new OptionSlider(CROSSHAIR_GAP, 0, 0, colW, 18, 0.0F, 50.0F,
+                CrosshairConfig.gap, false, "crosshairselection.gap", this), colW), crosshairOn);
+        add(left.place(new OptionSlider(CROSSHAIR_THICKNESS, 0, 0, colW, 18, 0.25F, 10.0F,
+                CrosshairConfig.thickness / 4.0F, false, "crosshairselection.thickness", this), colW), crosshairOn);
+        add(left.place(new OptionSlider(CROSSHAIR_ROTATION, 0, 0, colW, 18, 0, 360,
+                CrosshairConfig.rotation, true, "crosshairselection.rotation", this), colW), crosshairOn);
+
+        // 右列：显示条件与流光入口，其余细节在「准星详情」子页面
+        add(right.place(new GuiButton(CROSSHAIR_VISIBILITY_SETTINGS, 0, 0, colW, 18,
+                StatCollector.translateToLocal("crosshairselection.visibility_settings")), colW));
+        add(right.place(new GuiButton(CROSSHAIR_EXTRA_SETTINGS, 0, 0, colW, 18,
+                StatCollector.translateToLocal("crosshairselection.crosshair_extra")), colW));
+        right.group();
+        add(right.place(flowButton(CROSSHAIR_RAINBOW, 0, 0, colW, CrosshairConfig.flow), colW));
+        add(right.place(new OptionSlider(CROSSHAIR_RAINBOW_SPEED, 0, 0, colW, 18, 0, 2000,
+                CrosshairConfig.flow.speed, true, "crosshairselection.flow_speed", this), colW), flowOn);
+        right.group();
+        add(right.place(toggle(CROSSHAIR_TIC_CROSSHAIR, 0, 0, colW, "crosshairselection.tic_short",
+                CrosshairConfig.ticKeepCustomCrosshair), colW), crosshairOn);
+
+        int footer = FlowLayout.footerTop(height);
+        left.fitTo(FlowLayout.contentTop(height), footer);
+        right.fitTo(FlowLayout.contentTop(height), footer);
+        refreshEnabledStates();
+    }
+
+    private static Condition and(final Condition first, final Condition second) {
+        return new Condition() {
+            @Override
+            public boolean test() {
+                return first.test() && second.test();
+            }
+        };
     }
 
     private GuiButton toggle(int id, int x, int y, String key, boolean value) {
@@ -205,22 +322,25 @@ public class ConfigScreen extends GuiScreen implements SliderHost {
                 StatCollector.translateToLocalFormatted(key, onOff(value)));
     }
 
-    private GuiButton rainbowButton(int id, int x, int y, boolean rainbow, boolean flow) {
-        return rainbowButton(id, x, y, 150, rainbow, flow);
+    private static GuiButton flowButton(int id, int x, int y, FlowSettings flow) {
+        return flowButton(id, x, y, 150, flow);
     }
 
-    private GuiButton rainbowButton(int id, int x, int y, int width, boolean rainbow, boolean flow) {
+    private static GuiButton flowButton(int id, int x, int y, int width, FlowSettings flow) {
         return new GuiButton(id, x, y, width, 18,
-                StatCollector.translateToLocalFormatted("crosshairselection.rainbow", rainbowMode(rainbow, flow)));
+                StatCollector.translateToLocalFormatted("crosshairselection.rainbow", flowModeName(flow)));
     }
 
-    private static String rainbowMode(boolean rainbow, boolean flow) {
-        if (!rainbow) {
-            return StatCollector.translateToLocal("crosshairselection.rainbow.off");
+    private static String flowModeName(FlowSettings flow) {
+        switch (flow.mode) {
+            case OFF:
+                return StatCollector.translateToLocal("crosshairselection.flow.off");
+            case SWEEP:
+                return StatCollector.translateToLocal("crosshairselection.flow.sweep");
+            case FLOW:
+            default:
+                return StatCollector.translateToLocal("crosshairselection.flow.flow");
         }
-        return StatCollector.translateToLocal(flow
-                ? "crosshairselection.rainbow.flow"
-                : "crosshairselection.rainbow.global");
     }
 
     private static String onOff(boolean value) {
@@ -246,7 +366,7 @@ public class ConfigScreen extends GuiScreen implements SliderHost {
     }
 
     @Override
-    protected void actionPerformed(GuiButton button) {
+    protected void onButtonPressed(GuiButton button) {
         switch (button.id) {
             case TAB_SELECTION:
                 tab = 0;
@@ -268,47 +388,47 @@ public class ConfigScreen extends GuiScreen implements SliderHost {
                 mc.displayGuiScreen(parent);
                 break;
             case DEFAULTS:
-                SelectionBoxConfig.reset();
-                CrosshairConfig.reset();
-                initGui();
+                // Only the page being edited is reset, and the prompt names that scope.
+                final boolean resetCrosshair = tab == 1;
+                mc.displayGuiScreen(new ConfirmScreen(this,
+                        StatCollector.translateToLocal(resetCrosshair
+                                ? "crosshairselection.defaults.confirm.crosshair"
+                                : "crosshairselection.defaults.confirm.selection"),
+                        new Runnable() {
+                            @Override
+                            public void run() {
+                                ConfigScreen reopened = new ConfigScreen(parent);
+                                reopened.tab = resetCrosshair ? 1 : 0;
+                                if (resetCrosshair) {
+                                    CrosshairConfig.reset();
+                                } else {
+                                    SelectionBoxConfig.reset();
+                                }
+                                mc.displayGuiScreen(reopened);
+                            }
+                        }));
                 break;
             case SELECTION_ENABLED:
                 SelectionBoxConfig.enabled = !SelectionBoxConfig.enabled;
                 button.displayString = StatCollector.translateToLocalFormatted("crosshairselection.enabled",
                         onOff(SelectionBoxConfig.enabled));
+                refreshEnabledStates();
                 break;
             case SELECTION_RAINBOW:
-                if (!SelectionBoxConfig.rainbow) {
-                    SelectionBoxConfig.rainbow = true;
-                    SelectionBoxConfig.rainbowFlow = true;
-                } else if (SelectionBoxConfig.rainbowFlow) {
-                    SelectionBoxConfig.rainbowFlow = false;
-                } else {
-                    SelectionBoxConfig.rainbow = false;
-                    SelectionBoxConfig.rainbowFlow = true;
-                }
-                button.displayString = StatCollector.translateToLocalFormatted("crosshairselection.rainbow",
-                        rainbowMode(SelectionBoxConfig.rainbow, SelectionBoxConfig.rainbowFlow));
+                childOpen = true;
+                mc.displayGuiScreen(new FlowScreen(this, false));
                 break;
             case SELECTION_LINK:
                 SelectionBoxConfig.linkBlocks = !SelectionBoxConfig.linkBlocks;
                 button.displayString = StatCollector.translateToLocalFormatted("crosshairselection.link_blocks",
                         onOff(SelectionBoxConfig.linkBlocks));
+                refreshEnabledStates();
                 break;
             case SELECTION_HIDDEN:
                 SelectionBoxConfig.showHidden = !SelectionBoxConfig.showHidden;
                 button.displayString = StatCollector.translateToLocalFormatted("crosshairselection.see_through",
                         onOff(SelectionBoxConfig.showHidden));
-                break;
-            case SELECTION_FILL:
-                SelectionBoxConfig.showFill = !SelectionBoxConfig.showFill;
-                button.displayString = StatCollector.translateToLocalFormatted("crosshairselection.fill",
-                        onOff(SelectionBoxConfig.showFill));
-                break;
-            case SELECTION_BLINK:
-                SelectionBoxConfig.blink = !SelectionBoxConfig.blink;
-                button.displayString = StatCollector.translateToLocalFormatted("crosshairselection.blink",
-                        onOff(SelectionBoxConfig.blink));
+                refreshEnabledStates();
                 break;
             case SELECTION_COLOUR:
                 openColourPicker("crosshairselection.colour.title.selection_box", SelectionBoxConfig.colour, new ColorCallback() {
@@ -323,6 +443,7 @@ public class ConfigScreen extends GuiScreen implements SliderHost {
                 CrosshairConfig.enabled = !CrosshairConfig.enabled;
                 button.displayString = StatCollector.translateToLocalFormatted("crosshairselection.enabled",
                         onOff(CrosshairConfig.enabled));
+                refreshEnabledStates();
                 break;
             case CROSSHAIR_TYPE:
                 CrosshairConfig.type = CrosshairConfig.type.next();
@@ -333,44 +454,22 @@ public class ConfigScreen extends GuiScreen implements SliderHost {
                 CrosshairConfig.outline = !CrosshairConfig.outline;
                 button.displayString = StatCollector.translateToLocalFormatted("crosshairselection.outline",
                         onOff(CrosshairConfig.outline));
+                refreshEnabledStates();
                 break;
             case CROSSHAIR_DOT:
                 CrosshairConfig.dot = !CrosshairConfig.dot;
                 button.displayString = StatCollector.translateToLocalFormatted("crosshairselection.dot",
                         onOff(CrosshairConfig.dot));
+                refreshEnabledStates();
                 break;
             case CROSSHAIR_RAINBOW:
-                if (!CrosshairConfig.rainbow) {
-                    CrosshairConfig.rainbow = true;
-                    CrosshairConfig.rainbowFlow = true;
-                } else if (CrosshairConfig.rainbowFlow) {
-                    CrosshairConfig.rainbowFlow = false;
-                } else {
-                    CrosshairConfig.rainbow = false;
-                    CrosshairConfig.rainbowFlow = true;
-                }
-                button.displayString = StatCollector.translateToLocalFormatted("crosshairselection.rainbow",
-                        rainbowMode(CrosshairConfig.rainbow, CrosshairConfig.rainbowFlow));
+                childOpen = true;
+                mc.displayGuiScreen(new FlowScreen(this, true));
                 break;
             case CROSSHAIR_VISIBLE:
                 CrosshairConfig.visibleDefault = !CrosshairConfig.visibleDefault;
                 button.displayString = StatCollector.translateToLocalFormatted("crosshairselection.visible",
                         onOff(CrosshairConfig.visibleDefault));
-                break;
-            case CROSSHAIR_VISIBLE_F1:
-                CrosshairConfig.visibleHiddenGui = !CrosshairConfig.visibleHiddenGui;
-                button.displayString = StatCollector.translateToLocalFormatted("crosshairselection.visible_f1",
-                        onOff(CrosshairConfig.visibleHiddenGui));
-                break;
-            case CROSSHAIR_VISIBLE_DEBUG:
-                CrosshairConfig.visibleDebug = !CrosshairConfig.visibleDebug;
-                button.displayString = StatCollector.translateToLocalFormatted("crosshairselection.visible_debug",
-                        onOff(CrosshairConfig.visibleDebug));
-                break;
-            case CROSSHAIR_VISIBLE_THIRD:
-                CrosshairConfig.visibleThirdPerson = !CrosshairConfig.visibleThirdPerson;
-                button.displayString = StatCollector.translateToLocalFormatted("crosshairselection.visible_third",
-                        onOff(CrosshairConfig.visibleThirdPerson));
                 break;
             case CROSSHAIR_COLOUR:
                 openColourPicker("crosshairselection.colour.title.crosshair", CrosshairConfig.colour, new ColorCallback() {
@@ -399,28 +498,77 @@ public class ConfigScreen extends GuiScreen implements SliderHost {
                     }
                 });
                 break;
-            case CROSSHAIR_TIC_CROSSHAIR:
-                CrosshairConfig.useTicBowCrosshair = !CrosshairConfig.useTicBowCrosshair;
+            case SELECTION_BREAK_POSITION:
+                SelectionBoxConfig.breakProgressPosition = SelectionBoxConfig.breakProgressPosition.next();
                 button.displayString = StatCollector.translateToLocalFormatted(
-                        "crosshairselection.tic_short", onOff(CrosshairConfig.useTicBowCrosshair));
+                        "crosshairselection.hud_position",
+                        StatCollector.translateToLocal(
+                                SelectionBoxConfig.breakProgressPosition.getTranslationKey()));
+                break;
+            case SELECTION_BREAK_STYLE:
+                SelectionBoxConfig.breakProgressStyle = SelectionBoxConfig.breakProgressStyle.next();
+                button.displayString = StatCollector.translateToLocalFormatted(
+                        "crosshairselection.break_style",
+                        StatCollector.translateToLocal(SelectionBoxConfig.breakProgressStyle.getTranslationKey()));
+                break;
+            case SELECTION_BREAK_PROGRESS:
+                SelectionBoxConfig.showBreakProgress = !SelectionBoxConfig.showBreakProgress;
+                button.displayString = StatCollector.translateToLocalFormatted(
+                        "crosshairselection.break_progress", onOff(SelectionBoxConfig.showBreakProgress));
+                break;
+            case CROSSHAIR_FEEDBACK_STYLE:
+                CrosshairConfig.feedbackStyle = CrosshairConfig.feedbackStyle.next();
+                button.displayString = StatCollector.translateToLocalFormatted(
+                        "crosshairselection.feedback_style",
+                        StatCollector.translateToLocal(CrosshairConfig.feedbackStyle.getTranslationKey()));
+                initGui();
+                break;
+            case CROSSHAIR_BOW_FEEDBACK:
+                CrosshairConfig.bowChargeFeedback = !CrosshairConfig.bowChargeFeedback;
+                button.displayString = StatCollector.translateToLocalFormatted(
+                        "crosshairselection.bow_feedback_short", onOff(CrosshairConfig.bowChargeFeedback));
+                break;
+            case CROSSHAIR_BOW_INDICATOR:
+                CrosshairConfig.bowChargeIndicator = CrosshairConfig.bowChargeIndicator.next();
+                button.displayString = StatCollector.translateToLocalFormatted(
+                        "crosshairselection.bow_indicator",
+                        StatCollector.translateToLocal(CrosshairConfig.bowChargeIndicator.getTranslationKey()));
+                break;
+            case CROSSHAIR_ATTACK_FEEDBACK:
+                CrosshairConfig.attackFeedback = !CrosshairConfig.attackFeedback;
+                button.displayString = StatCollector.translateToLocalFormatted(
+                        "crosshairselection.attack_feedback", onOff(CrosshairConfig.attackFeedback));
+                break;
+            case CROSSHAIR_PLACE_FEEDBACK:
+                CrosshairConfig.placeFeedback = !CrosshairConfig.placeFeedback;
+                button.displayString = StatCollector.translateToLocalFormatted(
+                        "crosshairselection.place_feedback", onOff(CrosshairConfig.placeFeedback));
+                break;
+            case CROSSHAIR_TIC_CROSSHAIR:
+                CrosshairConfig.ticKeepCustomCrosshair = !CrosshairConfig.ticKeepCustomCrosshair;
+                button.displayString = StatCollector.translateToLocalFormatted(
+                        "crosshairselection.tic_short", onOff(CrosshairConfig.ticKeepCustomCrosshair));
                 break;
             case SELECTION_SMOOTH:
                 SelectionBoxConfig.smoothTransition = !SelectionBoxConfig.smoothTransition;
                 button.displayString = StatCollector.translateToLocalFormatted(
                         "crosshairselection.smooth_transition", onOff(SelectionBoxConfig.smoothTransition));
                 break;
+            case SELECTION_FILL_SETTINGS:
+                childOpen = true;
+                mc.displayGuiScreen(new FillScreen(this));
+                break;
+            case CROSSHAIR_EXTRA_SETTINGS:
+                childOpen = true;
+                mc.displayGuiScreen(new CrosshairExtraScreen(this));
+                break;
+            case CROSSHAIR_VISIBILITY_SETTINGS:
+                childOpen = true;
+                mc.displayGuiScreen(new VisibilityScreen(this));
+                break;
             case SELECTION_GT_SETTINGS:
                 childOpen = true;
                 mc.displayGuiScreen(new GtOverlayScreen(this));
-                break;
-            case SELECTION_TEXTURE_SIZE:
-                cycleTextureSize();
-                button.displayString = textureSizeLabel();
-                break;
-            case SELECTION_ANTI_ALIAS:
-                SelectionBoxConfig.antiAlias = !SelectionBoxConfig.antiAlias;
-                button.displayString = StatCollector.translateToLocalFormatted(
-                        "crosshairselection.anti_alias", onOff(SelectionBoxConfig.antiAlias));
                 break;
             default:
                 break;
@@ -445,46 +593,17 @@ public class ConfigScreen extends GuiScreen implements SliderHost {
         }
     }
 
-    private static final int[] TEXTURE_SIZES = {0, 128, 256, 512};
-
-    private static String textureSizeLabel() {
-        int size = SelectionBoxConfig.rainbowTextureSize;
-        String value = size <= 0
-                ? StatCollector.translateToLocal("crosshairselection.auto")
-                : Integer.toString(size);
-        return StatCollector.translateToLocalFormatted(
-                "crosshairselection.rainbow_texture_size", value);
-    }
-
-    private static void cycleTextureSize() {
-        int current = SelectionBoxConfig.rainbowTextureSize;
-        int index = 0;
-        for (int i = 0; i < TEXTURE_SIZES.length; i++) {
-            if (TEXTURE_SIZES[i] == current) {
-                index = i;
-                break;
-            }
-        }
-        SelectionBoxConfig.rainbowTextureSize = TEXTURE_SIZES[(index + 1) % TEXTURE_SIZES.length];
-    }
-
     @Override
-    public void onSliderChanged(int optionId, float value) {
+    protected void onSliderValue(int optionId, float value) {
         switch (optionId) {
             case SELECTION_THICKNESS:
                 SelectionBoxConfig.thickness = value;
-                break;
-            case SELECTION_BLINK_ALPHA:
-                SelectionBoxConfig.blinkAlpha = Math.round(value);
-                break;
-            case SELECTION_BLINK_SPEED:
-                SelectionBoxConfig.blinkSpeed = value;
                 break;
             case SELECTION_MARGIN:
                 SelectionBoxConfig.outlineMargin = Math.round(value * 1000.0F) / 1000.0F;
                 break;
             case SELECTION_RAINBOW_SPEED:
-                SelectionBoxConfig.rainbowSpeed = Math.round(value);
+                SelectionBoxConfig.flow.speed = Math.round(value);
                 break;
             case CROSSHAIR_WIDTH:
                 CrosshairConfig.width = value;
@@ -502,7 +621,16 @@ public class ConfigScreen extends GuiScreen implements SliderHost {
                 CrosshairConfig.rotation = Math.round(value);
                 break;
             case CROSSHAIR_RAINBOW_SPEED:
-                CrosshairConfig.rainbowSpeed = Math.round(value);
+                CrosshairConfig.flow.speed = Math.round(value);
+                break;
+            case CROSSHAIR_FEEDBACK_STRENGTH:
+                CrosshairConfig.feedbackStrength = value;
+                break;
+            case CROSSHAIR_EXPAND_SPEED:
+                CrosshairConfig.expandSpeed = value;
+                break;
+            case CROSSHAIR_RETURN_SPEED:
+                CrosshairConfig.returnSpeed = value;
                 break;
             case CROSSHAIR_OUTLINE_THICKNESS:
                 CrosshairConfig.outlineThickness = value;
@@ -521,11 +649,13 @@ public class ConfigScreen extends GuiScreen implements SliderHost {
         this.drawCenteredString(fontRendererObj, "Crosshair-Selection", width / 2, 6, 0xFFFFFF);
         super.drawScreen(mouseX, mouseY, partialTicks);
 
-        if (tab == 0) {
-            drawSelectionPreview(width / 2, 140);
-        } else if (tab == 1) {
-            drawCrosshairPreview(width / 2, 140);
-        }
+        PreviewPanel.begin(tab == 1 ? PreviewPanel.Content.CROSSHAIR : PreviewPanel.Content.CUBE,
+                selectionFlowForPreview());
+        PreviewPanel.drawCentred(width, height);
+    }
+
+    private static me.kuionc.crosshairselection.config.FlowSettings selectionFlowForPreview() {
+        return SelectionBoxConfig.flow;
     }
 
     private void drawSelectionPreview(int centerX, int centerY) {
@@ -542,14 +672,10 @@ public class ConfigScreen extends GuiScreen implements SliderHost {
         RenderHelper.drawOutline(centerX - size / 2 - 1, centerY - size / 2 - 1,
                 centerX + size / 2 + 1, centerY + size / 2 + 1, 1.0F, 0xFF808080);
 
-        boolean flow = SelectionBoxConfig.rainbow && SelectionBoxConfig.rainbowFlow;
+        boolean flow = SelectionBoxConfig.flow.mode == FlowSettings.Mode.FLOW;
         long flowTime = System.currentTimeMillis();
-        float flowSpeed = SelectionBoxConfig.rainbowSpeed;
+        float flowSpeed = SelectionBoxConfig.flow.speed;
         int colour = SelectionBoxConfig.colour;
-        if (SelectionBoxConfig.rainbow && !flow) {
-            colour = ColorUtil.withAlpha(ColorUtil.hsbToRgb(
-                    System.currentTimeMillis() % 10000L / 10000.0F, 0.8F, 0.8F), ColorUtil.alpha(colour));
-        }
         int innerAlpha;
         if (!SelectionBoxConfig.showFill) {
             innerAlpha = 0;
@@ -561,22 +687,31 @@ public class ConfigScreen extends GuiScreen implements SliderHost {
         }
         int inner = ColorUtil.withAlpha(colour, innerAlpha);
 
-        GL11.glPushMatrix();
-        GL11.glTranslatef(centerX, centerY, 0.0F);
-        GL11.glRotatef(24.0F, 1.0F, 0.0F, 0.0F);
-        GL11.glRotatef(45.0F, 0.0F, 1.0F, 0.0F);
-        GL11.glScalef(54.0F, 54.0F, 54.0F);
-        drawCube(colour, inner, flow, flowTime, flowSpeed);
-        GL11.glPopMatrix();
+        drawCube(centerX, centerY, 54.0F, colour, inner, flow, flowTime, flowSpeed);
         GL11.glPopAttrib();
     }
 
-    private static void drawCube(int outlineColour, int innerColour, boolean flow, long flowTime,
-                                 float flowSpeed) {
-        if (flow) {
-            drawFlowCubePreview(outlineColour, innerColour, flowTime, flowSpeed);
-            return;
-        }
+    /**
+     * Draws the preview cube with a CPU transform, so no matrix stack is involved. Points are
+     * defined in [-0.5, 0.5], rotated and scaled, then offset to the preview centre.
+     */
+    private static double[] transformPreview(double x, double y, double z,
+                                             int centerX, int centerY, float scale) {
+        // Rotate 24 degrees around X, then 45 degrees around Y.
+        double rx = 24.0D * Math.PI / 180.0D;
+        double ry = 45.0D * Math.PI / 180.0D;
+        double y1 = y * Math.cos(rx) - z * Math.sin(rx);
+        double z1 = y * Math.sin(rx) + z * Math.cos(rx);
+        double x2 = x * Math.cos(ry) + z1 * Math.sin(ry);
+        double z2 = -x * Math.sin(ry) + z1 * Math.cos(ry);
+        return new double[]{centerX + x2 * scale, centerY + y1 * scale, z2};
+    }
+
+    private static void drawCube(int centerX, int centerY, float scale, int outlineColour,
+                                 int innerColour, boolean flow, long flowTime, float flowSpeed) {
+        previewCenterX = centerX;
+        previewCenterY = centerY;
+        previewScale = scale;
         if (ColorUtil.alpha(innerColour) > 2) {
             RenderHelper.setColor(innerColour);
             Tessellator tessellator = com.gtnewhorizon.gtnhlib.client.renderer.TessellatorManager.get();
@@ -615,89 +750,9 @@ public class ConfigScreen extends GuiScreen implements SliderHost {
         GL11.glLineWidth(1.0F);
     }
 
-    private void drawCrosshairPreview(int centerX, int centerY) {
-        int size = 90;
-        GL11.glPushAttrib(GL11.GL_ENABLE_BIT | GL11.GL_CURRENT_BIT | GL11.GL_LINE_BIT);
-        GL11.glDisable(GL11.GL_TEXTURE_2D);
-        GL11.glDisable(GL11.GL_DEPTH_TEST);
-        GL11.glDisable(GL11.GL_CULL_FACE);
-        GL11.glDisable(GL11.GL_LIGHTING);
-        GL11.glDisable(GL11.GL_ALPHA_TEST);
-        GL11.glEnable(GL11.GL_BLEND);
-        GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
-        RenderHelper.drawCheckerboard(centerX - size / 2, centerY - size / 2, size, size, 10);
-        RenderHelper.drawOutline(centerX - size / 2 - 1, centerY - size / 2 - 1,
-                centerX + size / 2 + 1, centerY + size / 2 + 1, 1.0F, 0xFF808080);
-        GL11.glPopAttrib();
-
-        ScaledResolution resolution = new ScaledResolution(mc, mc.displayWidth, mc.displayHeight);
-        int scale = resolution.getScaleFactor();
-        GL11.glEnable(GL11.GL_SCISSOR_TEST);
-        GL11.glScissor((centerX - size / 2) * scale,
-                mc.displayHeight - (centerY + size / 2) * scale, size * scale, size * scale);
-        previewRenderer.draw(centerX, centerY);
-        GL11.glDisable(GL11.GL_SCISSOR_TEST);
-    }
-
-    private static void drawFlowCubePreview(int outlineColour, int innerColour,
-                                            long flowTime, float flowSpeed) {
-        if (ColorUtil.alpha(innerColour) > 2) {
-            GL11.glBegin(GL11.GL_QUADS);
-            flowQuad(-0.5D, -0.5D, -0.5D, 0.5D, -0.5D, -0.5D, 0.5D, -0.5D, 0.5D, -0.5D, -0.5D, 0.5D,
-                    innerColour, flowTime, flowSpeed);
-            flowQuad(-0.5D, 0.5D, -0.5D, -0.5D, 0.5D, 0.5D, 0.5D, 0.5D, 0.5D, 0.5D, 0.5D, -0.5D,
-                    innerColour, flowTime, flowSpeed);
-            flowQuad(-0.5D, -0.5D, -0.5D, -0.5D, 0.5D, -0.5D, -0.5D, 0.5D, 0.5D, -0.5D, -0.5D, 0.5D,
-                    innerColour, flowTime, flowSpeed);
-            flowQuad(0.5D, -0.5D, -0.5D, 0.5D, -0.5D, 0.5D, 0.5D, 0.5D, 0.5D, 0.5D, 0.5D, -0.5D,
-                    innerColour, flowTime, flowSpeed);
-            flowQuad(-0.5D, -0.5D, -0.5D, 0.5D, -0.5D, -0.5D, 0.5D, 0.5D, -0.5D, -0.5D, 0.5D, -0.5D,
-                    innerColour, flowTime, flowSpeed);
-            flowQuad(-0.5D, -0.5D, 0.5D, -0.5D, 0.5D, 0.5D, 0.5D, 0.5D, 0.5D, 0.5D, -0.5D, 0.5D,
-                    innerColour, flowTime, flowSpeed);
-            GL11.glEnd();
-        }
-
-        GL11.glLineWidth(Math.max(1.0F, Math.min(4.0F, SelectionBoxConfig.thickness)));
-        GL11.glBegin(GL11.GL_LINES);
-        flowLine(-0.5D, -0.5D, -0.5D, 0.5D, -0.5D, -0.5D, outlineColour, flowTime, flowSpeed);
-        flowLine(0.5D, -0.5D, -0.5D, 0.5D, -0.5D, 0.5D, outlineColour, flowTime, flowSpeed);
-        flowLine(0.5D, -0.5D, 0.5D, -0.5D, -0.5D, 0.5D, outlineColour, flowTime, flowSpeed);
-        flowLine(-0.5D, -0.5D, 0.5D, -0.5D, -0.5D, -0.5D, outlineColour, flowTime, flowSpeed);
-        flowLine(-0.5D, 0.5D, -0.5D, 0.5D, 0.5D, -0.5D, outlineColour, flowTime, flowSpeed);
-        flowLine(0.5D, 0.5D, -0.5D, 0.5D, 0.5D, 0.5D, outlineColour, flowTime, flowSpeed);
-        flowLine(0.5D, 0.5D, 0.5D, -0.5D, 0.5D, 0.5D, outlineColour, flowTime, flowSpeed);
-        flowLine(-0.5D, 0.5D, 0.5D, -0.5D, 0.5D, -0.5D, outlineColour, flowTime, flowSpeed);
-        flowLine(-0.5D, -0.5D, -0.5D, -0.5D, 0.5D, -0.5D, outlineColour, flowTime, flowSpeed);
-        flowLine(0.5D, -0.5D, -0.5D, 0.5D, 0.5D, -0.5D, outlineColour, flowTime, flowSpeed);
-        flowLine(0.5D, -0.5D, 0.5D, 0.5D, 0.5D, 0.5D, outlineColour, flowTime, flowSpeed);
-        flowLine(-0.5D, -0.5D, 0.5D, -0.5D, 0.5D, 0.5D, outlineColour, flowTime, flowSpeed);
-        GL11.glEnd();
-        GL11.glLineWidth(1.0F);
-    }
-
-    private static void flowQuad(double x1, double y1, double z1, double x2, double y2, double z2,
-                                 double x3, double y3, double z3, double x4, double y4, double z4,
-                                 int colour, long flowTime, float flowSpeed) {
-        flowVertex(x1, y1, z1, colour, flowTime, flowSpeed);
-        flowVertex(x2, y2, z2, colour, flowTime, flowSpeed);
-        flowVertex(x3, y3, z3, colour, flowTime, flowSpeed);
-        flowVertex(x4, y4, z4, colour, flowTime, flowSpeed);
-    }
-
-    private static void flowLine(double x1, double y1, double z1, double x2, double y2, double z2,
-                                 int colour, long flowTime, float flowSpeed) {
-        flowVertex(x1, y1, z1, colour, flowTime, flowSpeed);
-        flowVertex(x2, y2, z2, colour, flowTime, flowSpeed);
-    }
-
-    private static void flowVertex(double x, double y, double z, int colour,
-                                   long flowTime, float flowSpeed) {
-        int c = Rainbow.colorAt(x, y, z, flowTime, flowSpeed, ColorUtil.alpha(colour));
-        GL11.glColor4f((c >> 16 & 255) / 255.0F, (c >> 8 & 255) / 255.0F,
-                (c & 255) / 255.0F, (c >>> 24 & 255) / 255.0F);
-        GL11.glVertex3d(x, y, z);
-    }
+    private static int previewCenterX;
+    private static int previewCenterY;
+    private static float previewScale;
 
     private static void addQuad(Tessellator tessellator,
                                 double x1, double y1, double z1, double x2, double y2, double z2,
@@ -718,11 +773,14 @@ public class ConfigScreen extends GuiScreen implements SliderHost {
 
     private static void addPreviewVertex(Tessellator tessellator, double x, double y, double z,
                                          int colour, boolean flow, long flowTime, float flowSpeed) {
+        double[] p = transformPreview(x, y, z, previewCenterX, previewCenterY, previewScale);
         if (flow) {
             RenderHelper.setVertexColor(tessellator,
-                    Rainbow.colorAt(x, y, z, flowTime, flowSpeed, ColorUtil.alpha(colour)));
+                    Rainbow.colorAt(p[0], p[1], 0.0D, flowTime, flowSpeed, ColorUtil.alpha(colour)));
+        } else {
+            RenderHelper.setVertexColor(tessellator, colour);
         }
-        tessellator.addVertex(x, y, z);
+        tessellator.addVertex(p[0], p[1], 0.0D);
     }
 
     @Override
@@ -758,11 +816,6 @@ public class ConfigScreen extends GuiScreen implements SliderHost {
         private final float selectionOutlineMargin;
         private final int selectionBlinkAlpha;
         private final float selectionBlinkSpeed;
-        private final boolean selectionRainbow;
-        private final boolean selectionRainbowFlow;
-        private final int selectionRainbowSpeed;
-        private final int selectionRainbowTextureSize;
-        private final boolean selectionAntiAlias;
         private final boolean selectionLink;
         private final boolean selectionHidden;
         private final boolean selectionSmooth;
@@ -781,12 +834,21 @@ public class ConfigScreen extends GuiScreen implements SliderHost {
         private final boolean crosshairOutline;
         private final int crosshairOutlineColour;
         private final float crosshairOutlineThickness;
+        private final float crosshairExpandSpeed;
+        private final float crosshairReturnSpeed;
+        private final boolean crosshairBowFeedback;
+        private final me.kuionc.crosshairselection.config.BowChargeIndicator crosshairBowIndicator;
         private final boolean crosshairDot;
         private final int crosshairDotColour;
-        private final boolean crosshairRainbow;
-        private final boolean crosshairRainbowFlow;
-        private final int crosshairRainbowSpeed;
+        private final me.kuionc.crosshairselection.config.FlowSettings crosshairFlow = new me.kuionc.crosshairselection.config.FlowSettings();
+        private final me.kuionc.crosshairselection.config.FlowSettings selectionFlow = new me.kuionc.crosshairselection.config.FlowSettings();
         private final boolean crosshairUseTicBowCrosshair;
+        private final boolean crosshairAttackFeedback;
+        private final boolean crosshairPlaceFeedback;
+        private final float crosshairFeedbackStrength;
+        private final me.kuionc.crosshairselection.config.FeedbackStyle crosshairFeedbackStyle;
+        private final boolean selectionBreakProgress;
+        private final me.kuionc.crosshairselection.config.BreakProgressStyle selectionBreakStyle;
         private final boolean crosshairVisible;
         private final boolean crosshairVisibleF1;
         private final boolean crosshairVisibleDebug;
@@ -799,11 +861,8 @@ public class ConfigScreen extends GuiScreen implements SliderHost {
             selectionOutlineMargin = SelectionBoxConfig.outlineMargin;
             selectionBlinkAlpha = SelectionBoxConfig.blinkAlpha;
             selectionBlinkSpeed = SelectionBoxConfig.blinkSpeed;
-            selectionRainbow = SelectionBoxConfig.rainbow;
-            selectionRainbowFlow = SelectionBoxConfig.rainbowFlow;
-            selectionRainbowSpeed = SelectionBoxConfig.rainbowSpeed;
-            selectionRainbowTextureSize = SelectionBoxConfig.rainbowTextureSize;
-            selectionAntiAlias = SelectionBoxConfig.antiAlias;
+            selectionFlow.copyFrom(SelectionBoxConfig.flow);
+
             selectionLink = SelectionBoxConfig.linkBlocks;
             selectionHidden = SelectionBoxConfig.showHidden;
             selectionSmooth = SelectionBoxConfig.smoothTransition;
@@ -822,12 +881,20 @@ public class ConfigScreen extends GuiScreen implements SliderHost {
             crosshairOutline = CrosshairConfig.outline;
             crosshairOutlineColour = CrosshairConfig.outlineColour;
             crosshairOutlineThickness = CrosshairConfig.outlineThickness;
+            crosshairExpandSpeed = CrosshairConfig.expandSpeed;
+            crosshairReturnSpeed = CrosshairConfig.returnSpeed;
+            crosshairBowFeedback = CrosshairConfig.bowChargeFeedback;
+            crosshairBowIndicator = CrosshairConfig.bowChargeIndicator;
             crosshairDot = CrosshairConfig.dot;
             crosshairDotColour = CrosshairConfig.dotColour;
-            crosshairRainbow = CrosshairConfig.rainbow;
-            crosshairRainbowFlow = CrosshairConfig.rainbowFlow;
-            crosshairRainbowSpeed = CrosshairConfig.rainbowSpeed;
-            crosshairUseTicBowCrosshair = CrosshairConfig.useTicBowCrosshair;
+            crosshairFlow.copyFrom(CrosshairConfig.flow);
+            crosshairUseTicBowCrosshair = CrosshairConfig.ticKeepCustomCrosshair;
+            crosshairAttackFeedback = CrosshairConfig.attackFeedback;
+            crosshairPlaceFeedback = CrosshairConfig.placeFeedback;
+            crosshairFeedbackStrength = CrosshairConfig.feedbackStrength;
+            crosshairFeedbackStyle = CrosshairConfig.feedbackStyle;
+            selectionBreakProgress = SelectionBoxConfig.showBreakProgress;
+            selectionBreakStyle = SelectionBoxConfig.breakProgressStyle;
             crosshairVisible = CrosshairConfig.visibleDefault;
             crosshairVisibleF1 = CrosshairConfig.visibleHiddenGui;
             crosshairVisibleDebug = CrosshairConfig.visibleDebug;
@@ -841,11 +908,8 @@ public class ConfigScreen extends GuiScreen implements SliderHost {
             SelectionBoxConfig.outlineMargin = selectionOutlineMargin;
             SelectionBoxConfig.blinkAlpha = selectionBlinkAlpha;
             SelectionBoxConfig.blinkSpeed = selectionBlinkSpeed;
-            SelectionBoxConfig.rainbow = selectionRainbow;
-            SelectionBoxConfig.rainbowFlow = selectionRainbowFlow;
-            SelectionBoxConfig.rainbowSpeed = selectionRainbowSpeed;
-            SelectionBoxConfig.rainbowTextureSize = selectionRainbowTextureSize;
-            SelectionBoxConfig.antiAlias = selectionAntiAlias;
+            SelectionBoxConfig.flow.copyFrom(selectionFlow);
+
             SelectionBoxConfig.linkBlocks = selectionLink;
             SelectionBoxConfig.showHidden = selectionHidden;
             SelectionBoxConfig.smoothTransition = selectionSmooth;
@@ -864,12 +928,20 @@ public class ConfigScreen extends GuiScreen implements SliderHost {
             CrosshairConfig.outline = crosshairOutline;
             CrosshairConfig.outlineColour = crosshairOutlineColour;
             CrosshairConfig.outlineThickness = crosshairOutlineThickness;
+            CrosshairConfig.expandSpeed = crosshairExpandSpeed;
+            CrosshairConfig.returnSpeed = crosshairReturnSpeed;
+            CrosshairConfig.bowChargeFeedback = crosshairBowFeedback;
+            CrosshairConfig.bowChargeIndicator = crosshairBowIndicator;
             CrosshairConfig.dot = crosshairDot;
             CrosshairConfig.dotColour = crosshairDotColour;
-            CrosshairConfig.rainbow = crosshairRainbow;
-            CrosshairConfig.rainbowFlow = crosshairRainbowFlow;
-            CrosshairConfig.rainbowSpeed = crosshairRainbowSpeed;
-            CrosshairConfig.useTicBowCrosshair = crosshairUseTicBowCrosshair;
+            CrosshairConfig.flow.copyFrom(crosshairFlow);
+            CrosshairConfig.ticKeepCustomCrosshair = crosshairUseTicBowCrosshair;
+            CrosshairConfig.attackFeedback = crosshairAttackFeedback;
+            CrosshairConfig.placeFeedback = crosshairPlaceFeedback;
+            CrosshairConfig.feedbackStrength = crosshairFeedbackStrength;
+            CrosshairConfig.feedbackStyle = crosshairFeedbackStyle;
+            SelectionBoxConfig.showBreakProgress = selectionBreakProgress;
+            SelectionBoxConfig.breakProgressStyle = selectionBreakStyle;
             CrosshairConfig.visibleDefault = crosshairVisible;
             CrosshairConfig.visibleHiddenGui = crosshairVisibleF1;
             CrosshairConfig.visibleDebug = crosshairVisibleDebug;

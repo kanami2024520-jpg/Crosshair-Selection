@@ -6,6 +6,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.Tessellator;
 import net.minecraft.util.AxisAlignedBB;
 import org.lwjgl.opengl.GL11;
+import me.kuionc.crosshairselection.util.McRef;
 
 /**
  * Texture-based rainbow rendering. A 1D HSV texture is sampled with position-dependent UVs, so
@@ -107,14 +108,14 @@ public final class FlowRenderer {
         ny /= normalLength;
         nz /= normalLength;
 
-        double fov = Minecraft.getMinecraft().gameSettings.fovSetting;
+        double fov = McRef.get().gameSettings.fovSetting;
         double worldPerPixel = 2.0D * distance * Math.tan(Math.toRadians(fov) * 0.5D)
-                / Math.max(1.0D, Minecraft.getMinecraft().displayHeight);
+                / Math.max(1.0D, McRef.get().displayHeight);
         double half = Math.max(0.0008D, thicknessPixels * 0.5D * worldPerPixel);
         double unitX = nx;
         double unitY = ny;
         double unitZ = nz;
-        boolean feather = SelectionBoxConfig.antiAlias;
+        boolean feather = false;
 
         RainbowTexture.bind();
         GL11.glColor4f(1.0F, 1.0F, 1.0F, (alpha & 255) / 255.0F);
@@ -307,7 +308,7 @@ public final class FlowRenderer {
         return flowCoordinate((x + y + z) * 0.2D, time, speed);
     }
 
-    private static float flowU2D(float x, float y, long time, float speed) {
+    public static float flowU2D(float x, float y, long time, float speed) {
         return flowCoordinate((x + y) * 0.02D, time, speed);
     }
 

@@ -54,12 +54,7 @@ public final class UnionOutlineRenderer {
 
         if (expanded.size() == 1) {
             AxisAlignedBB box = expanded.get(0);
-            if (rainbowFlow) {
-                FlowRenderer.drawBox3D(box, cameraX, cameraY, cameraZ,
-                        colour, flowTime, flowSpeed, 8, thickness);
-            } else {
-                ThickLineRenderer.drawBox3D(box, cameraX, cameraY, cameraZ, colour, thickness);
-            }
+            ThickLineRenderer.drawBox3D(box, cameraX, cameraY, cameraZ, colour, thickness);
             return;
         }
 
@@ -265,15 +260,8 @@ public final class UnionOutlineRenderer {
                 z1 = zs[iz + 1];
             }
 
-            if (rainbowFlow) {
-                int c = Rainbow.colorAt((x0 + x1) * 0.5D, (y0 + y1) * 0.5D, (z0 + z1) * 0.5D,
-                        flowTime, flowSpeed, alpha);
-                FlowRenderer.drawSegment3D(x0, y0, z0, x1, y1, z1,
-                        cameraX, cameraY, cameraZ, c, thickness);
-            } else {
-                ThickLineRenderer.drawLine3D(x0, y0, z0, x1, y1, z1,
-                        cameraX, cameraY, cameraZ, colour, thickness);
-            }
+            ThickLineRenderer.drawLine3D(x0, y0, z0, x1, y1, z1,
+                    cameraX, cameraY, cameraZ, colour, thickness);
         }
     }
 

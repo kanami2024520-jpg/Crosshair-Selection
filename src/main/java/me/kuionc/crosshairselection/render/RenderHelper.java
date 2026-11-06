@@ -6,6 +6,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.Tessellator;
 import net.minecraft.util.ResourceLocation;
 import org.lwjgl.opengl.GL11;
+import me.kuionc.crosshairselection.util.McRef;
 
 /**
  * Thin drawing helpers shared by the crosshair and the selection box. All geometry goes through
@@ -25,7 +26,7 @@ public final class RenderHelper {
      * disabled. World-space lines therefore need an opaque texture with valid UVs.
      */
     public static void bindWhiteTexture() {
-        Minecraft.getMinecraft().getTextureManager().bindTexture(WHITE_TEXTURE);
+        McRef.get().getTextureManager().bindTexture(WHITE_TEXTURE);
     }
 
     public static void setColor(int argb) {
@@ -133,6 +134,56 @@ public final class RenderHelper {
                     ColorUtil.alpha(argb)));
         }
         tessellator.addVertex(x, y, 0.0D);
+    }
+
+    /**
+     * Draws a screen-space quad for a line segment given its normal offset, used by the settings
+     * previews which cannot use the world-space shaders.
+     */
+    /** 填充三角形，用于 HUD 上的箭头等小图形。 */
+    public static void drawTriangle(float x1, float y1, float x2, float y2, float x3, float y3, int argb) {
+        setColor(argb);
+        Tessellator tessellator = TessellatorManager.get();
+        tessellator.startDrawing(GL11.GL_TRIANGLES);
+        tessellator.setColorRGBA_F((argb >> 16 & 255) / 255.0F, (argb >> 8 & 255) / 255.0F,
+                (argb & 255) / 255.0F, (argb >>> 24 & 255) / 255.0F);
+        tessellator.addVertex(x1, y1, 0.0D);
+        tessellator.addVertex(x2, y2, 0.0D);
+        tessellator.addVertex(x3, y3, 0.0D);
+        tessellator.draw();
+    }
+
+    public static void drawLineSegment(float x1, float y1, float x2, float y2,
+                                       float nx, float ny, int argb) {
+        setColor(argb);
+        Tessellator tessellator = TessellatorManager.get();
+        tessellator.startDrawingQuads();
+        tessellator.setColorRGBA_F((argb >> 16 & 255) / 255.0F, (argb >> 8 & 255) / 255.0F,
+                (argb & 255) / 255.0F, (argb >>> 24 & 255) / 255.0F);
+        tessellator.addVertex(x1 + nx, y1 + ny, 0.0D);
+        tessellator.addVertex(x2 + nx, y2 + ny, 0.0D);
+        tessellator.addVertex(x2 - nx, y2 - ny, 0.0D);
+        tessellator.addVertex(x1 - nx, y1 - ny, 0.0D);
+        tessellator.draw();
+    }
+
+    /**
+     * Draws a checkerboard covering the whole area, including partial tiles at the right and
+     * bottom edges, so no background fringe is left behind.
+     */
+    public static void drawCheckerboardClipped(int x, int y, int width, int height, int tile) {
+        for (int ix = 0; ix <= width / tile; ix++) {
+            for (int iy = 0; iy <= height / tile; iy++) {
+                int argb = ((ix + iy) & 1) == 0 ? 0xFF3A3A3A : 0xFF4A4A4A;
+                int x1 = x + ix * tile;
+                int y1 = y + iy * tile;
+                int x2 = Math.min(x + width, x1 + tile);
+                int y2 = Math.min(y + height, y1 + tile);
+                if (x1 < x2 && y1 < y2) {
+                    drawRect(x1, y1, x2, y2, argb);
+                }
+            }
+        }
     }
 
     public static void drawCheckerboard(int x, int y, int width, int height, int tile) {

@@ -11,7 +11,9 @@
     "MixinRenderGlobal",
     "MixinGtBlockOverlayRenderer",
     "MixinPlayerControllerMP",
-    "MixinGuiScreenKeyboard"
+    "MixinGuiScreenKeyboard",
+    "AccessorKeyBinding",
+    "AccessorEntityRenderer"
   ],
   "injectors": {
     "defaultRequire": 1

@@ -12,6 +12,7 @@ import net.minecraft.util.Vec3;
 import net.minecraft.world.World;
 
 import java.util.List;
+import me.kuionc.crosshairselection.util.McRef;
 
 /**
  * Corrects Minecraft's block target for thin GT pipes, cables and cover plates. The vanilla
@@ -45,7 +46,7 @@ public final class GtTargetResolver {
                 return null;
             }
         }
-        Minecraft mc = Minecraft.getMinecraft();
+        Minecraft mc = McRef.get();
         Vec3 eye = Vec3.createVectorHelper(player.posX,
                 player.posY + player.getEyeHeight(), player.posZ);
         Vec3 look = player.getLook(partialTicks);

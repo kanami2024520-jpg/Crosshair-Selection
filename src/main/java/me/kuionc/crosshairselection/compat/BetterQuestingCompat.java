@@ -5,6 +5,7 @@ import net.minecraft.client.gui.GuiScreen;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import me.kuionc.crosshairselection.util.McRef;
 
 /**
  * Reflection helpers for BetterQuesting's GUI canvases.
@@ -112,7 +113,7 @@ public final class BetterQuestingCompat {
                 return true;
             }
 
-            Minecraft minecraft = Minecraft.getMinecraft();
+            Minecraft minecraft = McRef.get();
             GuiScreen target = null;
             if (isScreenCanvas(screen) && screenPrevious != null) {
                 target = (GuiScreen) screenPrevious.get(screen);

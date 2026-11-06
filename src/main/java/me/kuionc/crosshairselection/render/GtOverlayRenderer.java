@@ -107,88 +107,67 @@ public final class GtOverlayRenderer {
         }
         java.util.List<OutlineShape> shapes = ShapeCollector.collect(world, block, x, y, z, primary, target);
 
-        int boxColour = GtOverlayConfig.useSelectionStyle ? SelectionBoxConfig.colour : GtOverlayConfig.colour;
-        double margin = Math.max(0.0D, GtOverlayConfig.margin);
-        if (GtOverlayConfig.useSelectionStyle) {
-            margin += Math.max(0.0D, SelectionBoxConfig.outlineMargin);
-        }
+        // "Use selection style" makes the pipe outline follow the selection box exactly; with it
+        // off, the GT page owns the colour, width and margin.
+        int boxColour = GtOverlayConfig.useSelectionStyle
+                ? SelectionBoxConfig.colour : GtOverlayConfig.colour;
+        double margin = Math.max(0.0D, SelectionBoxConfig.outlineMargin);
         float boxThickness = GtOverlayConfig.useSelectionStyle
-                ? SelectionBoxConfig.thickness * Math.max(2.5F,
-                        Minecraft.getMinecraft().displayWidth / 1920.0F * 2.5F)
-                : GtOverlayConfig.thickness;
-        boolean flow = GtOverlayConfig.useSelectionStyle
-                && SelectionBoxConfig.rainbow && SelectionBoxConfig.rainbowFlow;
-        long flowTime = System.currentTimeMillis();
-        float flowSpeed = SelectionBoxConfig.rainbowSpeed;
+                ? SelectionBoxRenderer.outlineThickness() : GtOverlayConfig.thickness;
 
-        GL11.glPushAttrib(GL11.GL_ENABLE_BIT | GL11.GL_CURRENT_BIT | GL11.GL_DEPTH_BUFFER_BIT
-                | GL11.GL_POLYGON_BIT);
-        GL11.glDisable(GL11.GL_LIGHTING);
-        GL11.glDisable(GL11.GL_TEXTURE_2D);
-        RenderHelper.bindWhiteTexture();
-        GL11.glDisable(GL11.GL_CULL_FACE);
-        GL11.glDisable(GL11.GL_ALPHA_TEST);
-        GL11.glEnable(GL11.GL_BLEND);
-        GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
-        GL11.glEnable(GL11.GL_DEPTH_TEST);
-        GL11.glDepthFunc(GL11.GL_LEQUAL);
-        if (SelectionBoxConfig.antiAlias) {
-            GL11.glEnable(GL13.GL_MULTISAMPLE);
-        } else {
-            GL11.glDisable(GL13.GL_MULTISAMPLE);
-        }
-        GL11.glDepthMask(false);
-        GL11.glEnable(GL11.GL_POLYGON_OFFSET_FILL);
-        GL11.glPolygonOffset(-1.0F, -1.0F);
+        RenderBackend.beginWorldOutlines();
+        RenderBackend.worldDepthMode(false);
 
-        GL11.glPushMatrix();
-        if (offsetX != 0.0D || offsetY != 0.0D || offsetZ != 0.0D) {
-            GL11.glTranslated(offsetX, offsetY, offsetZ);
-        }
+        // The transition offset is applied to the camera-relative coordinates, so no matrix push
+        // is needed for the grid and the block outline.
+        double drawCameraX = cameraX - offsetX;
+        double drawCameraY = cameraY - offsetY;
+        double drawCameraZ = cameraZ - offsetZ;
+
+        // One batch per frame; every segment carries its own width, so the block outline and the
+        // grid no longer have to share one thickness. The selection flow animates the pipe
+        // outline only when the selection style is in use; the grid never animates.
+        boolean ribbons = RibbonBuffer.begin(boxColour,
+                GtOverlayConfig.useSelectionStyle ? SelectionBoxConfig.flow : null,
+                drawCameraX, drawCameraY, drawCameraZ);
         if (GtOverlayConfig.showBlockOutline) {
             for (OutlineShape shape : shapes) {
-                drawOverlayShape(shape, cameraX, cameraY, cameraZ, boxColour, boxThickness,
-                        margin, flow, flowTime, flowSpeed);
+                drawOverlayShape(shape, drawCameraX, drawCameraY, drawCameraZ, boxColour, boxThickness,
+                        margin);
             }
         }
         if (GtOverlayConfig.showGrid) {
             if (GtOverlayConfig.gridAllFaces) {
                 for (int side = 0; side < 6; side++) {
-                    drawGrid(x, y, z, side, cameraX, cameraY, cameraZ, targetSides,
-                            flow, flowTime, flowSpeed);
+                    drawGrid(x, y, z, side, targetSides, drawCameraX, drawCameraY, drawCameraZ);
                 }
             } else {
-                drawGrid(x, y, z, target.sideHit, cameraX, cameraY, cameraZ, targetSides,
-                        flow, flowTime, flowSpeed);
+                drawGrid(x, y, z, target.sideHit, targetSides, drawCameraX, drawCameraY, drawCameraZ);
             }
         }
-        GL11.glPopMatrix();
-
-        GL11.glDisable(GL11.GL_POLYGON_OFFSET_FILL);
-        GL11.glDepthMask(true);
-        GL11.glColor4f(1.0F, 1.0F, 1.0F, 1.0F);
-        GL11.glPopAttrib();
+        if (ribbons) {
+            RibbonBuffer.end();
+        }
+        RenderBackend.endWorldOutlines();
         return true;
     }
 
     private static void drawOverlayShape(OutlineShape shape, double cameraX, double cameraY, double cameraZ,
-                                          int colour, float thickness, double margin,
-                                          boolean flow, long flowTime, float flowSpeed) {
+                                          int colour, float thickness, double margin) {
         if (shape.getKind() == OutlineShape.Kind.UNION) {
-            UnionOutlineRenderer.draw(shape.getBoxes(), cameraX, cameraY, cameraZ,
-                    colour, thickness, margin, flow, flowTime, flowSpeed);
+            for (AxisAlignedBB box : shape.getBoxes()) {
+                AxisAlignedBB expanded = margin > 0.0D ? box.expand(margin, margin, margin) : box;
+                ThickLineRenderer.drawBox3D(expanded, cameraX, cameraY, cameraZ, colour, thickness);
+            }
             return;
         }
         if (shape.getKind() != OutlineShape.Kind.BOX) {
             return;
         }
-        AxisAlignedBB box = BoxUtil.expandWithinBlock(shape.getBox(), margin);
-        if (flow) {
-            FlowRenderer.drawBox3D(box, cameraX, cameraY, cameraZ,
-                    colour, flowTime, flowSpeed, 8, thickness);
-        } else {
-            ThickLineRenderer.drawBox3D(box, cameraX, cameraY, cameraZ, colour, thickness);
-        }
+        // The extra GT margin is applied outside the block on purpose: expandWithinBlock clamps to
+        // the block cell, so a full block would never show any margin at all.
+        AxisAlignedBB box = margin > 0.0D ? shape.getBox().expand(margin, margin, margin) : shape.getBox();
+        ThickLineRenderer.drawBox3D(box, cameraX, cameraY, cameraZ, colour, thickness);
     }
 
     private static void resetSmooth() {
@@ -214,182 +193,88 @@ public final class GtOverlayRenderer {
         return GtOverlayConfig.gridAllFaces || side == renderedSide;
     }
 
-    private static void drawGrid(int x, int y, int z, int side, double cameraX, double cameraY, double cameraZ,
-                                 java.util.Set<Integer> targetSides, boolean flow, long flowTime,
-                                 float flowSpeed) {
+    private static void drawGrid(int x, int y, int z, int side, java.util.Set<Integer> targetSides,
+                                 double cameraX, double cameraY, double cameraZ) {
         double[] normal = faceNormal(side);
-        double[] u = faceU(side);
-        double[] v = faceV(side);
-        double radians = Math.toRadians(0.0F);
-        double cos = Math.cos(radians);
-        double sin = Math.sin(radians);
-        double ux = u[0] * cos + v[0] * sin;
-        double uy = u[1] * cos + v[1] * sin;
-        double uz = u[2] * cos + v[2] * sin;
-        double vx = -u[0] * sin + v[0] * cos;
-        double vy = -u[1] * sin + v[1] * cos;
-        double vz = -u[2] * sin + v[2] * cos;
-
-        double inset = Math.max(0.0D, Math.min(0.25D, GtOverlayConfig.gridInset));
-        double half = GtGridMath.half(inset, 0.0F);
+        double[] ux = faceU(side);
+        double[] uy = faceV(side);
         double cx = x + 0.5D + normal[0] * 0.502D;
         double cy = y + 0.5D + normal[1] * 0.502D;
         double cz = z + 0.5D + normal[2] * 0.502D;
-        double[] positions = GtGridMath.linePositions(inset, 0.0F,
-                GtOverlayConfig.gridCellSize);
+        double inset = Math.max(0.0D, Math.min(0.25D, GtOverlayConfig.gridInset));
         int colour = gridColour();
         float thickness = gridThickness();
 
-        for (double position : positions) {
-            drawGridLine(cx + ux * position - vx * half, cy + uy * position - vy * half,
-                    cz + uz * position - vz * half,
-                    cx + ux * position + vx * half, cy + uy * position + vy * half,
-                    cz + uz * position + vz * half,
-                    cameraX, cameraY, cameraZ, colour, thickness,
-                    flow, flowTime, flowSpeed);
-            drawGridLine(cx - ux * half + vx * position, cy - uy * half + vy * position,
-                    cz - uz * half + vz * position,
-                    cx + ux * half + vx * position, cy + uy * half + vy * position,
-                    cz + uz * half + vz * position,
-                    cameraX, cameraY, cameraZ, colour, thickness,
-                    flow, flowTime, flowSpeed);
+        for (GtFaceGeometry.Segment line : GtFaceGeometry.gridLines(inset, GtOverlayConfig.gridCellSize)) {
+            drawFaceSegment(cx, cy, cz, ux, uy, line, cameraX, cameraY, cameraZ, colour, thickness);
         }
 
         if (GtOverlayConfig.showInputFaceX && targetSides != null && !targetSides.isEmpty()) {
             for (int col = 0; col < 3; col++) {
                 for (int row = 0; row < 3; row++) {
                     int targetSide = GtGridMath.sideForCell(side, col, row);
-                    if (targetSide >= 0 && targetSides.contains(targetSide)) {
-                        drawCellX(cx, cy, cz, ux, uy, uz, vx, vy, vz,
-                                col, row, half, cameraX, cameraY, cameraZ, colour, thickness,
-                                flow, flowTime, flowSpeed);
+                    if (targetSide < 0 || !targetSides.contains(targetSide)) {
+                        continue;
+                    }
+                    GtFaceGeometry.Cell fill = GtFaceGeometry.markerFill(col, row);
+                    if (fill != null) {
+                        drawFaceCell(cx, cy, cz, ux, uy, fill, cameraX, cameraY, cameraZ,
+                                GtFaceGeometry.markerFillColour(colour));
+                        continue;
+                    }
+                    for (GtFaceGeometry.Segment mark : GtFaceGeometry.markerLines(col, row)) {
+                        drawFaceSegment(cx, cy, cz, ux, uy, mark, cameraX, cameraY, cameraZ,
+                                colour, thickness);
                     }
                 }
             }
         }
     }
 
-    private static void drawCellX(double cx, double cy, double cz,
-                                  double ux, double uy, double uz,
-                                  double vx, double vy, double vz,
-                                  int col, int row, double half,
-                                  double cameraX, double cameraY, double cameraZ,
-                                  int colour, float thickness, boolean flow, long flowTime,
-                                  float flowSpeed) {
-        if (GtOverlayConfig.xStyle == me.kuionc.crosshairselection.config.GtXStyle.FILL) {
-            drawCellFill(cx, cy, cz, ux, uy, uz, vx, vy, vz, col, row,
-                    cameraX, cameraY, cameraZ, colour);
-            return;
-        }
-        if (GtOverlayConfig.xStyle == me.kuionc.crosshairselection.config.GtXStyle.FULL_X) {
-            double[] bounds = GtGridMath.cellBounds(col, row, GtOverlayConfig.gridInset,
-                    0.0F, GtOverlayConfig.gridCellSize);
-            double u0 = bounds[0] - 0.5D;
-            double u1 = bounds[1] - 0.5D;
-            double v0 = bounds[2] - 0.5D;
-            double v1 = bounds[3] - 0.5D;
-            drawGridLine(cx + ux * u0 + vx * v0, cy + uy * u0 + vy * v0, cz + uz * u0 + vz * v0,
-                    cx + ux * u1 + vx * v1, cy + uy * u1 + vy * v1, cz + uz * u1 + vz * v1,
-                    cameraX, cameraY, cameraZ, colour, thickness, flow, flowTime, flowSpeed);
-            drawGridLine(cx + ux * u0 + vx * v1, cy + uy * u0 + vy * v1, cz + uz * u0 + vz * v1,
-                    cx + ux * u1 + vx * v0, cy + uy * u1 + vy * v0, cz + uz * u1 + vz * v0,
-                    cameraX, cameraY, cameraZ, colour, thickness, flow, flowTime, flowSpeed);
-            return;
-        }
-
-        double[] center = GtGridMath.cellCenter(col, row, GtOverlayConfig.gridInset,
-                0.0F, GtOverlayConfig.gridCellSize);
-        double pu = center[0] - 0.5D;
-        double pv = center[1] - 0.5D;
-        double px = cx + ux * pu + vx * pv;
-        double py = cy + uy * pu + vy * pv;
-        double pz = cz + uz * pu + vz * pv;
-        double edge = Math.min(Math.max(0.05D, Math.min(0.45D, GtOverlayConfig.gridCellSize)), half * 0.8D);
-        double size = Math.min(0.12D, Math.min(edge, half - edge) * 0.45D);
-
-        if (GtOverlayConfig.xStyle == me.kuionc.crosshairselection.config.GtXStyle.ARROW) {
-            double du = col == 0 ? -1.0D : col == 2 ? 1.0D : 0.0D;
-            double dv = row == 0 ? -1.0D : row == 2 ? 1.0D : 0.0D;
-            if (du == 0.0D && dv == 0.0D) {
-                du = 1.0D;
-            }
-            double len = Math.sqrt(du * du + dv * dv);
-            du /= len;
-            dv /= len;
-            double tipX = px + (ux * du + vx * dv) * size;
-            double tipY = py + (uy * du + vy * dv) * size;
-            double tipZ = pz + (uz * du + vz * dv) * size;
-            double baseX = px - (ux * du + vx * dv) * size * 0.55D;
-            double baseY = py - (uy * du + vy * dv) * size * 0.55D;
-            double baseZ = pz - (uz * du + vz * dv) * size * 0.55D;
-            double sideU = -dv * size * 0.7D;
-            double sideV = du * size * 0.7D;
-            drawGridLine(baseX + ux * sideU + vx * sideV, baseY + uy * sideU + vy * sideV,
-                    baseZ + uz * sideU + vz * sideV, tipX, tipY, tipZ,
-                    cameraX, cameraY, cameraZ, colour, thickness, flow, flowTime, flowSpeed);
-            drawGridLine(baseX - ux * sideU - vx * sideV, baseY - uy * sideU - vy * sideV,
-                    baseZ - uz * sideU - vz * sideV, tipX, tipY, tipZ,
-                    cameraX, cameraY, cameraZ, colour, thickness, flow, flowTime, flowSpeed);
-            return;
-        }
-
-        drawGridLine(px - ux * size - vx * size, py - uy * size - vy * size,
-                pz - uz * size - vz * size,
-                px + ux * size + vx * size, py + uy * size + vy * size,
-                pz + uz * size + vz * size,
-                cameraX, cameraY, cameraZ, colour, thickness * 1.15F,
-                flow, flowTime, flowSpeed);
-        drawGridLine(px - ux * size + vx * size, py - uy * size + vy * size,
-                pz - uz * size + vz * size,
-                px + ux * size - vx * size, py + uy * size - vy * size,
-                pz + uz * size - vz * size,
-                cameraX, cameraY, cameraZ, colour, thickness * 1.15F,
-                flow, flowTime, flowSpeed);
+    /** Maps a face-space segment to world space. u runs along ux/uy, v runs along -ux/uy. */
+    private static void drawFaceSegment(double cx, double cy, double cz,
+                                        double[] ux, double[] uy,
+                                        GtFaceGeometry.Segment line,
+                                        double cameraX, double cameraY, double cameraZ,
+                                        int colour, float thickness) {
+        double du1 = line.u1 - 0.5D;
+        double dv1 = line.v1 - 0.5D;
+        double du2 = line.u2 - 0.5D;
+        double dv2 = line.v2 - 0.5D;
+        double x1 = cx + ux[0] * du1 + uy[0] * dv1;
+        double y1 = cy + ux[1] * du1 + uy[1] * dv1;
+        double z1 = cz + ux[2] * du1 + uy[2] * dv1;
+        double x2 = cx + ux[0] * du2 + uy[0] * dv2;
+        double y2 = cy + ux[1] * du2 + uy[1] * dv2;
+        double z2 = cz + ux[2] * du2 + uy[2] * dv2;
+        ThickLineRenderer.drawLine3D(x1, y1, z1, x2, y2, z2,
+                cameraX, cameraY, cameraZ, colour, thickness * line.weight);
     }
 
-    private static void drawCellFill(double cx, double cy, double cz,
-                                     double ux, double uy, double uz,
-                                     double vx, double vy, double vz,
-                                     int col, int row,
+    private static void drawFaceCell(double cx, double cy, double cz,
+                                     double[] ux, double[] uy,
+                                     GtFaceGeometry.Cell cell,
                                      double cameraX, double cameraY, double cameraZ,
                                      int colour) {
-        double[] bounds = GtGridMath.cellBounds(col, row, GtOverlayConfig.gridInset,
-                0.0F, GtOverlayConfig.gridCellSize);
-        double u0 = bounds[0] - 0.5D;
-        double u1 = bounds[1] - 0.5D;
-        double v0 = bounds[2] - 0.5D;
-        double v1 = bounds[3] - 0.5D;
-        int fill = (colour & 0x00FFFFFF) | 0x66000000;
+        double u0 = cell.u1 - 0.5D;
+        double u1 = cell.u2 - 0.5D;
+        double v0 = cell.v1 - 0.5D;
+        double v1 = cell.v2 - 0.5D;
         FlowRenderer.drawQuad3D(
-                cx + ux * u0 + vx * v0, cy + uy * u0 + vy * v0, cz + uz * u0 + vz * v0,
-                cx + ux * u1 + vx * v0, cy + uy * u1 + vy * v0, cz + uz * u1 + vz * v0,
-                cx + ux * u1 + vx * v1, cy + uy * u1 + vy * v1, cz + uz * u1 + vz * v1,
-                cx + ux * u0 + vx * v1, cy + uy * u0 + vy * v1, cz + uz * u0 + vz * v1,
-                cameraX, cameraY, cameraZ, fill);
+                cx + ux[0] * u0 + uy[0] * v0, cy + ux[1] * u0 + uy[1] * v0, cz + ux[2] * u0 + uy[2] * v0,
+                cx + ux[0] * u1 + uy[0] * v0, cy + ux[1] * u1 + uy[1] * v0, cz + ux[2] * u1 + uy[2] * v0,
+                cx + ux[0] * u1 + uy[0] * v1, cy + ux[1] * u1 + uy[1] * v1, cz + ux[2] * u1 + uy[2] * v1,
+                cx + ux[0] * u0 + uy[0] * v1, cy + ux[1] * u0 + uy[1] * v1, cz + ux[2] * u0 + uy[2] * v1,
+                cameraX, cameraY, cameraZ, colour);
     }
 
     private static int gridColour() {
+        // With the selection style in use the grid inherits its colour, matching the pipe outline.
         return GtOverlayConfig.useSelectionStyle ? SelectionBoxConfig.colour : GtOverlayConfig.gridColour;
     }
 
     private static float gridThickness() {
-        return GtOverlayConfig.useSelectionStyle
-                ? SelectionBoxConfig.thickness * Math.max(2.5F,
-                        Minecraft.getMinecraft().displayWidth / 1920.0F * 2.5F)
-                : GtOverlayConfig.gridThickness;
-    }
-
-    private static void drawGridLine(double x1, double y1, double z1, double x2, double y2, double z2,
-                                     double cameraX, double cameraY, double cameraZ,
-                                     int colour, float thickness, boolean flow, long flowTime,
-                                     float flowSpeed) {
-        if (flow) {
-            FlowRenderer.drawLine3D(x1, y1, z1, x2, y2, z2, cameraX, cameraY, cameraZ,
-                    (colour >>> 24) & 255, flowTime, flowSpeed, 1, thickness);
-        } else {
-            ThickLineRenderer.drawLine3D(x1, y1, z1, x2, y2, z2,
-                    cameraX, cameraY, cameraZ, colour, thickness);
-        }
+        return GtOverlayConfig.gridThickness;
     }
 
     private static java.util.Set<Integer> targetSides(World world, int x, int y, int z) {

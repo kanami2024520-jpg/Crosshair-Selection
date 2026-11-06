@@ -20,7 +20,7 @@ public class SelectionBoxConfig {
 
     @Config.Comment("Outline thickness multiplier (0.1 - 7.0).")
     @Config.RangeFloat(min = 0.1F, max = 7.0F)
-    public static float thickness = 1.0F;
+    public static float thickness = 1.5F;
 
     @Config.Comment("Selection box margin in blocks (0.0 - 0.25). 0 hugs the shape exactly.")
     @Config.RangeFloat(min = 0.0F, max = 0.25F)
@@ -44,27 +44,36 @@ public class SelectionBoxConfig {
     @Config.RangeInt(min = 0, max = 2000)
     public static int rainbowSpeed = 500;
 
-    @Config.Comment("Rainbow texture width: 0 = Auto, 128, 256 or 512.")
-    public static int rainbowTextureSize = 0;
+    @Config.Comment("Show how far the targeted block is from breaking.")
+    public static boolean showBreakProgress = false;
+
+    @Config.Comment("Appearance of the mining progress indicator.")
+    public static BreakProgressStyle breakProgressStyle = BreakProgressStyle.BAR;
+
+    @Config.Comment("Where the break progress percentage is drawn, relative to the crosshair.")
+    public static HudPosition breakProgressPosition = HudPosition.BELOW;
+
+    /** Detailed flow and sweep parameters for the selection outline. Not persisted by the config. */
+    public static final FlowSettings flow = new FlowSettings();
 
     @Config.Comment("Enable multisampling where the renderer supports it.")
     public static boolean antiAlias = false;
 
     @Config.Comment("Link the boxes of doors, beds, double plants and pistons.")
-    public static boolean linkBlocks = false;
+    public static boolean linkBlocks = true;
 
     @Config.Comment("Draw the selection box through blocks (ignore depth testing).")
-    public static boolean showHidden = false;
+    public static boolean showHidden = true;
 
     @Config.Comment("Animate the selection box when the targeted block changes.")
-    public static boolean smoothTransition = false;
+    public static boolean smoothTransition = true;
 
     @Config.Comment("Selection transition duration in seconds (0.05 - 0.5).")
     @Config.RangeFloat(min = 0.05F, max = 0.5F)
     public static float transitionDuration = 0.15F;
 
     @Config.Comment("Draw the inner fill inside the selection box.")
-    public static boolean showFill = true;
+    public static boolean showFill = false;
 
     @Config.Comment("Animate the inner fill.")
     public static boolean blink = true;
@@ -72,20 +81,24 @@ public class SelectionBoxConfig {
     public static void reset() {
         enabled = true;
         colour = 0xFF236EFF;
-        thickness = 1.0F;
+        thickness = 1.5F;
         outlineMargin = 0.0F;
         blinkAlpha = 99;
         blinkSpeed = 0.2F;
         rainbow = false;
         rainbowFlow = true;
         rainbowSpeed = 500;
-        rainbowTextureSize = 0;
+        // 流彩走出厂默认值，选中流光的「重置」时也回到这一套。
+        flow.resetToDefault();
+        showBreakProgress = false;
+        breakProgressStyle = BreakProgressStyle.BAR;
+        breakProgressPosition = HudPosition.BELOW;
         antiAlias = false;
-        linkBlocks = false;
-        showHidden = false;
-        smoothTransition = false;
+        linkBlocks = true;
+        showHidden = true;
+        smoothTransition = true;
         transitionDuration = 0.15F;
-        showFill = true;
+        showFill = false;
         blink = true;
     }
 }

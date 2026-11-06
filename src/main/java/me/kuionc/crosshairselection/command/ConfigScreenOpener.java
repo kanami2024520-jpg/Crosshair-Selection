@@ -4,6 +4,7 @@ import cpw.mods.fml.common.eventhandler.SubscribeEvent;
 import cpw.mods.fml.common.gameevent.TickEvent;
 import me.kuionc.crosshairselection.gui.ConfigScreen;
 import net.minecraft.client.Minecraft;
+import me.kuionc.crosshairselection.util.McRef;
 
 /**
  * Opens the config screen after the current client tick. GuiChat closes itself with
@@ -24,6 +25,6 @@ public final class ConfigScreenOpener {
             return;
         }
         pending = false;
-        Minecraft.getMinecraft().displayGuiScreen(new ConfigScreen(null));
+        McRef.get().displayGuiScreen(new ConfigScreen(null));
     }
 }
