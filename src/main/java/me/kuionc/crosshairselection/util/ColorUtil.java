@@ -28,6 +28,14 @@ public final class ColorUtil {
         return colour & 255;
     }
 
+    /** Scales the RGB channels towards white; the alpha is kept. */
+    public static int brighten(int colour, float factor) {
+        int r = Math.min(255, Math.round(red(colour) * factor));
+        int g = Math.min(255, Math.round(green(colour) * factor));
+        int b = Math.min(255, Math.round(blue(colour) * factor));
+        return withAlpha((r << 16) | (g << 8) | b, alpha(colour));
+    }
+
     public static int withAlpha(int colour, int alpha) {
         return (alpha & 255) << 24 | (colour & 0x00FFFFFF);
     }

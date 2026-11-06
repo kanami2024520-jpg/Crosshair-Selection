@@ -14,6 +14,7 @@ import net.minecraftforge.common.util.ForgeDirection;
 
 import java.lang.reflect.Method;
 import java.util.List;
+import me.kuionc.crosshairselection.util.McRef;
 
 /**
  * GT machines and pipes can carry a cover plate on a face. The block shape is still the pipe
@@ -41,7 +42,7 @@ public final class GtCoverShapeProvider implements ShapeProvider {
             return false;
         }
         try {
-            EntityPlayer player = Minecraft.getMinecraft().thePlayer;
+            EntityPlayer player = McRef.get().thePlayer;
             Vec3 eye = player == null ? null : Vec3.createVectorHelper(
                     player.posX, player.posY + player.getEyeHeight(), player.posZ);
             Vec3 hit = target.hitVec;

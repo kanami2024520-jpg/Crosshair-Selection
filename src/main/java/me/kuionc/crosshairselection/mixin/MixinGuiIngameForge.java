@@ -8,6 +8,7 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+import me.kuionc.crosshairselection.util.McRef;
 
 /**
  * Suppresses the vanilla crosshair while the custom crosshair is enabled. The custom crosshair
@@ -19,7 +20,8 @@ public class MixinGuiIngameForge {
     @Inject(method = "renderCrosshairs", at = @At("HEAD"), cancellable = true, remap = false)
     private void crosshairselection$hideVanillaCrosshair(int width, int height, CallbackInfo ci) {
         if (CrosshairConfig.enabled
-                && !TicCrosshairCompat.shouldUseTicCrosshair(Minecraft.getMinecraft().thePlayer)) {
+                && !TicCrosshairCompat.shouldUseTicCrosshair(
+                        McRef.get() == null ? null : McRef.get().thePlayer)) {
             ci.cancel();
         }
     }

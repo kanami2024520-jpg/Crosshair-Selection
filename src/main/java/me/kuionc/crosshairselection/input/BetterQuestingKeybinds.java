@@ -19,13 +19,27 @@ public final class BetterQuestingKeybinds {
     private BetterQuestingKeybinds() {
     }
 
+    /**
+     * 当前绑定键码。
+     *
+     * <p>不能直接调用 {@code KeyBinding.getKeyCode()}：该方法的描述符在运行时会变化，
+     * 调用会抛 NoSuchMethodError。这里通过 {@code @Accessor} 读字段。
+     */
+    public static int keyCode() {
+        if (BACK instanceof me.kuionc.crosshairselection.mixin.AccessorKeyBinding) {
+            return ((me.kuionc.crosshairselection.mixin.AccessorKeyBinding) BACK)
+                    .crosshairselection$getKeyCode();
+        }
+        return Keyboard.KEY_NONE;
+    }
+
     public static boolean isBackKey(int keyCode) {
-        int bound = BACK.getKeyCode();
+        int bound = keyCode();
         return bound != Keyboard.KEY_NONE && bound >= 0 && bound == keyCode;
     }
 
     public static boolean isBackMouseButton(int button) {
-        int bound = BACK.getKeyCode();
+        int bound = keyCode();
         return bound < 0 && button >= 0 && bound == button - MOUSE_KEY_OFFSET;
     }
 }

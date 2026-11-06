@@ -7,6 +7,7 @@ import org.lwjgl.BufferUtils;
 import org.lwjgl.opengl.GL11;
 
 import java.nio.ByteBuffer;
+import me.kuionc.crosshairselection.util.McRef;
 
 /**
  * A 1D HSV rainbow texture. Flow is done by texture coordinates instead of many tiny line
@@ -31,22 +32,15 @@ public final class RainbowTexture {
     }
 
     /**
-     * 0 means Auto: pick a texture width from the current resolution. Any other value is
-     * snapped to the nearest supported size so old config files cannot create exotic textures.
+     * The rainbow is sampled on the GPU now, so the texture only needs enough resolution to keep
+     * the gradient banding-free on a 4K display.
      */
     public static int resolveSize() {
-        int configured = SelectionBoxConfig.rainbowTextureSize;
-        if (configured <= 0) {
-            int width = Minecraft.getMinecraft().displayWidth;
-            if (width >= 1920) {
-                return 512;
-            }
-            return width >= 1280 ? 256 : 128;
+        int width = McRef.get().displayWidth;
+        if (width >= 1920) {
+            return 512;
         }
-        if (configured <= 128) {
-            return 128;
-        }
-        return configured <= 256 ? 256 : 512;
+        return width >= 1280 ? 256 : 128;
     }
 
     private static void create(int size) {

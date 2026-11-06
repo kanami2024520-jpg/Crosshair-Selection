@@ -9,6 +9,7 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+import me.kuionc.crosshairselection.util.McRef;
 
 /**
  * Replaces BetterQuesting's hardcoded Backspace return key on its own GUI canvases.
@@ -26,7 +27,7 @@ public class MixinGuiScreenKeyboard {
             return;
         }
         int keyCode = Keyboard.getEventKey();
-        GuiScreen screen = Minecraft.getMinecraft().currentScreen;
+        GuiScreen screen = McRef.get().currentScreen;
         if (!BetterQuestingCompat.isCanvas(screen)) {
             return;
         }

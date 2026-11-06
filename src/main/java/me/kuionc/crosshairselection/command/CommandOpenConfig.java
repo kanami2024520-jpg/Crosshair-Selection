@@ -13,17 +13,18 @@ public class CommandOpenConfig extends CommandBase {
 
     @Override
     public String getCommandName() {
-        return "crosshairselection";
+        return "csc";
     }
 
     @Override
     public String getCommandUsage(ICommandSender sender) {
-        return "/crosshairselection";
+        return "/csc";
     }
 
     @Override
     public List<String> getCommandAliases() {
-        return java.util.Collections.singletonList("csb");
+        // 只保留 csc 一个名字，避免多别名在客户端命令处理里表现不一致。
+        return java.util.Collections.emptyList();
     }
 
     @Override

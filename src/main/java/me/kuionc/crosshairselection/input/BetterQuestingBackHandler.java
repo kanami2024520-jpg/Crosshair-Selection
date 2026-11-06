@@ -7,6 +7,7 @@ import me.kuionc.crosshairselection.compat.BetterQuestingCompat;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiScreen;
 import org.lwjgl.input.Mouse;
+import me.kuionc.crosshairselection.util.McRef;
 
 /**
  * Mouse side-button support for the BetterQuesting back key.
@@ -27,14 +28,18 @@ public final class BetterQuestingBackHandler {
         if (event.phase != TickEvent.Phase.END) {
             return;
         }
-        int button = mouseButtonOf(BetterQuestingKeybinds.BACK.getKeyCode());
+        int button = mouseButtonOf(BetterQuestingKeybinds.keyCode());
         boolean down = button >= 0 && Mouse.isButtonDown(button);
         boolean pressed = down && !wasDown;
         wasDown = down;
         if (!pressed) {
             return;
         }
-        GuiScreen screen = Minecraft.getMinecraft().currentScreen;
+        Minecraft minecraft = McRef.get();
+        if (minecraft == null) {
+            return;
+        }
+        GuiScreen screen = minecraft.currentScreen;
         BetterQuestingCompat.goBack(screen);
     }
 
