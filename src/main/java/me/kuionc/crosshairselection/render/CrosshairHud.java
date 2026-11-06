@@ -36,6 +36,12 @@ public final class CrosshairHud {
                 || minecraft.currentScreen != null || minecraft.gameSettings.hideGUI) {
             return;
         }
+        // 蓄力提示属于准星的一部分：准星被全局关闭（或按 F1 / 第三人称 /
+        // 匠魂自带准星等条件隐藏）时，它也必须一起消失。之前只判断了提示样式，
+        // 所以关掉准星后「↑」仍然挂在屏幕中间。
+        if (!CrosshairRenderer.shouldRender()) {
+            return;
+        }
         BowChargeIndicator indicator = CrosshairConfig.bowChargeIndicator;
         if (indicator == BowChargeIndicator.NONE) {
             return;

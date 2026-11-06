@@ -228,9 +228,17 @@ public final class Ae2ShapeProvider implements ShapeProvider {
         }
     }
 
+    /**
+     * 把一组局部碰撞盒转成世界坐标，并按<b>一个</b>联合外轮廓输出。
+     *
+     * <p>不能每盒各画一个框：ME 线的碰撞盒本来就是「中心核 + 每条连接臂」，
+     * 逐个画会在交界面上多出完整的 12 条边，看起来是「3 截框 + 2 处交叉」。
+     * {@link OutlineShape#union} 只会保留法线发生变化的外表面，内部接缝自动消失，
+     * 和 GT 管道、FMP、ProjectRed 等部件的处理方式一致。
+     */
     private static boolean addOffsetBoxes(Iterable<?> boxes, int x, int y, int z,
                                           List<OutlineShape> out) {
-        boolean added = false;
+        List<AxisAlignedBB> world = new ArrayList<AxisAlignedBB>();
         for (Object object : boxes) {
             if (!(object instanceof AxisAlignedBB)) {
                 continue;
@@ -240,12 +248,15 @@ public final class Ae2ShapeProvider implements ShapeProvider {
                     || box.maxZ - box.minZ <= 0.0001D) {
                 continue;
             }
-            out.add(OutlineShape.box(AxisAlignedBB.getBoundingBox(
+            world.add(AxisAlignedBB.getBoundingBox(
                     box.minX + x, box.minY + y, box.minZ + z,
-                    box.maxX + x, box.maxY + y, box.maxZ + z), false));
-            added = true;
+                    box.maxX + x, box.maxY + y, box.maxZ + z));
         }
-        return added;
+        if (world.isEmpty()) {
+            return false;
+        }
+        out.add(OutlineShape.union(world));
+        return true;
     }
 
     private static Class<?> classOrNull(String name) {
