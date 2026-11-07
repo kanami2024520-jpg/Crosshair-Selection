@@ -36,10 +36,27 @@ import java.util.List;
  *
  * <p><b>绝不</b>退回「整条总线的并集」：那会把线缆和终端/面板一起描出来，
  * 正是之前「两个都选上」的来源。
+ *
+ * <h3>踩坑记录：Forge Multipart 会把 AE 总线“吃掉”</h3>
+ * AE2 通过 {@code appeng.fmp.CableBusPart} 支持 Forge Multipart。只要同一个方块里
+ * 放进任意一个 FMP 部件——最常见的触发方式就是 <b>ProjectRed 的红色合金丝</b>——
+ * AE 的 {@code TileCableBus} 就会被转换成 {@code TileMultipart} 里的 {@code CableBusPart}。
+ *
+ * <p>如果这里只认 {@code TileCableBus}，这个方块会落到 {@link FmpShapeProvider}；
+ * 而 {@code CableBusPart.getCollisionBoxes()} 返回的是<b>整条总线</b>的盒子，
+ * 于是线缆和终端会被一起描出来，而且<b>拆掉红合金丝也不会恢复</b>——AE 仍然是 FMP 部件，
+ * 必须把 AE 部件敲掉重放才会变回普通方块。
+ *
+ * <p>所以这里必须同时接受两种载体，并用 {@code HitData.partIndex} 找到容器里
+ * 命中的那个 {@code CableBusPart}，再走同一套选择流程。
  */
 public final class Ae2ShapeProvider implements ShapeProvider {
 
     private static final Class<?> CABLE_TILE = classOrNull("appeng.tile.networking.TileCableBus");
+    /** AE 总线被 Forge Multipart 接管时的载体（和 PR 线等部件同处一格）。 */
+    private static final Class<?> MULTIPART_TILE = classOrNull("codechicken.multipart.TileMultipart");
+    private static final Class<?> AE_FMP_PART = classOrNull("appeng.fmp.CableBusPart");
+    private static final Method PART_LIST = methodOrNull(MULTIPART_TILE, "jPartList");
     private static final Class<?> BUS = classOrNull("appeng.parts.CableBusContainer");
     private static final Class<?> SELECTED_PART = classOrNull("appeng.api.parts.SelectedPart");
     private static final Class<?> FACADE_CONTAINER = classOrNull("appeng.api.parts.IFacadeContainer");
@@ -50,6 +67,8 @@ public final class Ae2ShapeProvider implements ShapeProvider {
 
     private static final Method GET_BUS = methodOrNull(CABLE_TILE, "getCableBus");
     private static final Method SELECT_PART = methodOrNull(CABLE_TILE, "selectPart", Vec3.class);
+    private static final Method FMP_GET_BUS = methodOrNull(AE_FMP_PART, "getCableBus");
+    private static final Method FMP_SELECT_PART = methodOrNull(AE_FMP_PART, "selectPart", Vec3.class);
     private static final Method GET_PART = methodOrNull(BUS, "getPart", ForgeDirection.class);
     private static final Method GET_FACADE_CONTAINER = methodOrNull(BUS, "getFacadeContainer");
     private static final Method GET_FACADE = methodOrNull(FACADE_CONTAINER, "getFacade",
@@ -76,12 +95,27 @@ public final class Ae2ShapeProvider implements ShapeProvider {
             return false;
         }
         TileEntity tile = world.getTileEntity(x, y, z);
-        if (!CABLE_TILE.isInstance(tile)) {
+
+        // AE 总线有两种载体：
+        //   - 普通方块：TileCableBus；
+        //   - 同一格里还有 Forge Multipart 部件（例如 ProjectRed 红色合金丝）时，
+        //     AE 会把它转换成 TileMultipart 里的 CableBusPart。
+        // 只认第一种的话，第二种会落到 FmpShapeProvider，而 CableBusPart 的碰撞盒
+        // 是整条总线，于是线缆和终端会被一起描出来。
+        Object bus = null;
+        Object selectionSource = null;
+        if (CABLE_TILE != null && CABLE_TILE.isInstance(tile)) {
+            selectionSource = tile;
+        } else if (MULTIPART_TILE != null && AE_FMP_PART != null && MULTIPART_TILE.isInstance(tile)) {
+            selectionSource = hitAeMultipart(tile, target);
+        }
+        if (selectionSource == null) {
             return false;
         }
-        Object bus;
         try {
-            bus = GET_BUS.invoke(tile);
+            bus = CABLE_TILE != null && CABLE_TILE.isInstance(selectionSource)
+                    ? GET_BUS.invoke(selectionSource)
+                    : FMP_GET_BUS.invoke(selectionSource);
         } catch (Throwable ignored) {
             return false;
         }
@@ -94,7 +128,7 @@ public final class Ae2ShapeProvider implements ShapeProvider {
                 target.hitVec.yCoord - y, target.hitVec.zCoord - z);
 
         // 1) AE 自己的判定优先。
-        List<AxisAlignedBB> chosen = fromAeSelection(tile, localHit);
+        List<AxisAlignedBB> chosen = fromAeSelection(selectionSource, localHit);
         if (chosen != null && addOffsetBoxes(chosen, x, y, z, out)) {
             return true;
         }
@@ -115,13 +149,50 @@ public final class Ae2ShapeProvider implements ShapeProvider {
         return false;
     }
 
-    /** 调用 AE 的 {@code selectPart}；它给出 part 或 facade 时返回对应盒子。 */
-    private static List<AxisAlignedBB> fromAeSelection(TileEntity tile, Vec3 localHit) {
-        if (SELECT_PART == null || SELECTED_PART == null || localHit == null) {
+    /** 在 Forge Multipart 容器里找命中的 AE 总线部件。 */
+    private static Object hitAeMultipart(TileEntity tile, MovingObjectPosition target) {
+        if (PART_LIST == null || AE_FMP_PART == null) {
             return null;
         }
         try {
-            Object selected = SELECT_PART.invoke(tile, localHit);
+            List<?> parts = (List<?>) PART_LIST.invoke(tile);
+            if (parts == null || parts.isEmpty()) {
+                return null;
+            }
+            int index = HitData.partIndex(target);
+            if (index >= 0 && index < parts.size()) {
+                Object part = parts.get(index);
+                return AE_FMP_PART.isInstance(part) ? part : null;
+            }
+            // 射线结果没带 part 序号时，只有在容器里恰好有一个 AE 总线部件才敢接手。
+            Object found = null;
+            for (Object part : parts) {
+                if (!AE_FMP_PART.isInstance(part)) {
+                    continue;
+                }
+                if (found != null) {
+                    return null;
+                }
+                found = part;
+            }
+            return found;
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
+
+    /** 调用 AE 的 {@code selectPart}；它给出 part 或 facade 时返回对应盒子。 */
+    private static List<AxisAlignedBB> fromAeSelection(Object source, Vec3 localHit) {
+        if (SELECTED_PART == null || localHit == null) {
+            return null;
+        }
+        Method selectPart = CABLE_TILE != null && CABLE_TILE.isInstance(source)
+                ? SELECT_PART : FMP_SELECT_PART;
+        if (selectPart == null) {
+            return null;
+        }
+        try {
+            Object selected = selectPart.invoke(source, localHit);
             if (selected == null) {
                 return null;
             }
