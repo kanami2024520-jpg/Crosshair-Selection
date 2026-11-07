@@ -265,7 +265,7 @@ public final class SelectionBoxRenderer {
             if (margin > 0.0D) {
                 box = BoxUtil.expandWithinBlock(box, margin);
             }
-            ThickLineRenderer.drawBox3D(box, cameraX, cameraY, cameraZ, outlineColour, thickness);
+            OutlineSegmentRenderer.drawBox3D(box, cameraX, cameraY, cameraZ, outlineColour, thickness);
         } else {
             drawCylinder(shape, cameraX, cameraY, cameraZ, outlineColour, thickness);
         }
@@ -287,7 +287,7 @@ public final class SelectionBoxRenderer {
             for (int i = 0; i < segments; i++) {
                 double[] a = cylinderPoint(axis, along, c1, c2, radius, Math.PI * 2.0D * i / segments);
                 double[] b = cylinderPoint(axis, along, c1, c2, radius, Math.PI * 2.0D * (i + 1) / segments);
-                ThickLineRenderer.drawLine3D(a[0], a[1], a[2], b[0], b[1], b[2],
+                OutlineSegmentRenderer.drawLine(a[0], a[1], a[2], b[0], b[1], b[2],
                         cameraX, cameraY, cameraZ, colour, thickness);
             }
         }
@@ -295,7 +295,7 @@ public final class SelectionBoxRenderer {
             double angle = Math.PI * 2.0D * i / longitudinal;
             double[] a = cylinderPoint(axis, min, c1, c2, radius, angle);
             double[] b = cylinderPoint(axis, max, c1, c2, radius, angle);
-            ThickLineRenderer.drawLine3D(a[0], a[1], a[2], b[0], b[1], b[2],
+            OutlineSegmentRenderer.drawLine(a[0], a[1], a[2], b[0], b[1], b[2],
                     cameraX, cameraY, cameraZ, colour, thickness);
         }
     }

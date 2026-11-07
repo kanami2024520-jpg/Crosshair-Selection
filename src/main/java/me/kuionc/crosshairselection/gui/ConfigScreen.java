@@ -7,18 +7,11 @@ import me.kuionc.crosshairselection.config.SelectionBoxConfig;
 import me.kuionc.crosshairselection.gui.widgets.ColorButton;
 import me.kuionc.crosshairselection.gui.widgets.ColorCallback;
 import me.kuionc.crosshairselection.gui.widgets.OptionSlider;
-import me.kuionc.crosshairselection.gui.widgets.SliderHost;
-import me.kuionc.crosshairselection.render.FlowRenderer;
 import me.kuionc.crosshairselection.render.CrosshairType;
-import me.kuionc.crosshairselection.render.Rainbow;
-import me.kuionc.crosshairselection.render.RenderHelper;
 import me.kuionc.crosshairselection.util.ColorUtil;
 import net.minecraft.client.gui.GuiButton;
 import net.minecraft.client.gui.GuiScreen;
-import net.minecraft.client.renderer.Tessellator;
-import net.minecraft.util.AxisAlignedBB;
 import net.minecraft.util.StatCollector;
-import org.lwjgl.opengl.GL11;
 
 /**
  * Unified settings screen: selection box and crosshair.
@@ -657,131 +650,6 @@ public class ConfigScreen extends SettingsScreen {
 
     private static me.kuionc.crosshairselection.config.FlowSettings selectionFlowForPreview() {
         return SelectionBoxConfig.flow;
-    }
-
-    private void drawSelectionPreview(int centerX, int centerY) {
-        int size = 90;
-        GL11.glPushAttrib(GL11.GL_ENABLE_BIT | GL11.GL_CURRENT_BIT | GL11.GL_LINE_BIT);
-        GL11.glDisable(GL11.GL_TEXTURE_2D);
-        GL11.glDisable(GL11.GL_DEPTH_TEST);
-        GL11.glDisable(GL11.GL_CULL_FACE);
-        GL11.glDisable(GL11.GL_LIGHTING);
-        GL11.glDisable(GL11.GL_ALPHA_TEST);
-        GL11.glEnable(GL11.GL_BLEND);
-        GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
-        RenderHelper.drawCheckerboard(centerX - size / 2, centerY - size / 2, size, size, 10);
-        RenderHelper.drawOutline(centerX - size / 2 - 1, centerY - size / 2 - 1,
-                centerX + size / 2 + 1, centerY + size / 2 + 1, 1.0F, 0xFF808080);
-
-        boolean flow = SelectionBoxConfig.flow.mode == FlowSettings.Mode.FLOW;
-        long flowTime = System.currentTimeMillis();
-        float flowSpeed = SelectionBoxConfig.flow.speed;
-        int colour = SelectionBoxConfig.colour;
-        int innerAlpha;
-        if (!SelectionBoxConfig.showFill) {
-            innerAlpha = 0;
-        } else if (SelectionBoxConfig.blink && SelectionBoxConfig.blinkSpeed > 0.0F) {
-            innerAlpha = Math.round(SelectionBoxConfig.blinkAlpha * (float) Math.abs(Math.sin(
-                    System.currentTimeMillis() / 100.0D * SelectionBoxConfig.blinkSpeed)));
-        } else {
-            innerAlpha = SelectionBoxConfig.blinkAlpha;
-        }
-        int inner = ColorUtil.withAlpha(colour, innerAlpha);
-
-        drawCube(centerX, centerY, 54.0F, colour, inner, flow, flowTime, flowSpeed);
-        GL11.glPopAttrib();
-    }
-
-    /**
-     * Draws the preview cube with a CPU transform, so no matrix stack is involved. Points are
-     * defined in [-0.5, 0.5], rotated and scaled, then offset to the preview centre.
-     */
-    private static double[] transformPreview(double x, double y, double z,
-                                             int centerX, int centerY, float scale) {
-        // Rotate 24 degrees around X, then 45 degrees around Y.
-        double rx = 24.0D * Math.PI / 180.0D;
-        double ry = 45.0D * Math.PI / 180.0D;
-        double y1 = y * Math.cos(rx) - z * Math.sin(rx);
-        double z1 = y * Math.sin(rx) + z * Math.cos(rx);
-        double x2 = x * Math.cos(ry) + z1 * Math.sin(ry);
-        double z2 = -x * Math.sin(ry) + z1 * Math.cos(ry);
-        return new double[]{centerX + x2 * scale, centerY + y1 * scale, z2};
-    }
-
-    private static void drawCube(int centerX, int centerY, float scale, int outlineColour,
-                                 int innerColour, boolean flow, long flowTime, float flowSpeed) {
-        previewCenterX = centerX;
-        previewCenterY = centerY;
-        previewScale = scale;
-        if (ColorUtil.alpha(innerColour) > 2) {
-            RenderHelper.setColor(innerColour);
-            Tessellator tessellator = com.gtnewhorizon.gtnhlib.client.renderer.TessellatorManager.get();
-            tessellator.startDrawing(GL11.GL_QUADS);
-            addQuad(tessellator, -0.5, -0.5, -0.5, 0.5, -0.5, -0.5, 0.5, -0.5, 0.5, -0.5, -0.5, 0.5,
-                    innerColour, flow, flowTime, flowSpeed);
-            addQuad(tessellator, -0.5, 0.5, -0.5, -0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, -0.5,
-                    innerColour, flow, flowTime, flowSpeed);
-            addQuad(tessellator, -0.5, -0.5, -0.5, -0.5, 0.5, -0.5, -0.5, 0.5, 0.5, -0.5, -0.5, 0.5,
-                    innerColour, flow, flowTime, flowSpeed);
-            addQuad(tessellator, 0.5, -0.5, -0.5, 0.5, -0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, -0.5,
-                    innerColour, flow, flowTime, flowSpeed);
-            addQuad(tessellator, -0.5, -0.5, -0.5, 0.5, -0.5, -0.5, 0.5, 0.5, -0.5, -0.5, 0.5, -0.5,
-                    innerColour, flow, flowTime, flowSpeed);
-            addQuad(tessellator, -0.5, -0.5, 0.5, -0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, -0.5, 0.5,
-                    innerColour, flow, flowTime, flowSpeed);
-            tessellator.draw();
-        }
-        RenderHelper.setColor(outlineColour);
-        GL11.glLineWidth(Math.max(1.0F, Math.min(4.0F, SelectionBoxConfig.thickness)));
-        Tessellator tessellator = com.gtnewhorizon.gtnhlib.client.renderer.TessellatorManager.get();
-        tessellator.startDrawing(GL11.GL_LINES);
-        addLine(tessellator, -0.5, -0.5, -0.5, 0.5, -0.5, -0.5, outlineColour, flow, flowTime, flowSpeed);
-        addLine(tessellator, 0.5, -0.5, -0.5, 0.5, -0.5, 0.5, outlineColour, flow, flowTime, flowSpeed);
-        addLine(tessellator, 0.5, -0.5, 0.5, -0.5, -0.5, 0.5, outlineColour, flow, flowTime, flowSpeed);
-        addLine(tessellator, -0.5, -0.5, 0.5, -0.5, -0.5, -0.5, outlineColour, flow, flowTime, flowSpeed);
-        addLine(tessellator, -0.5, 0.5, -0.5, 0.5, 0.5, -0.5, outlineColour, flow, flowTime, flowSpeed);
-        addLine(tessellator, 0.5, 0.5, -0.5, 0.5, 0.5, 0.5, outlineColour, flow, flowTime, flowSpeed);
-        addLine(tessellator, 0.5, 0.5, 0.5, -0.5, 0.5, 0.5, outlineColour, flow, flowTime, flowSpeed);
-        addLine(tessellator, -0.5, 0.5, 0.5, -0.5, 0.5, -0.5, outlineColour, flow, flowTime, flowSpeed);
-        addLine(tessellator, -0.5, -0.5, -0.5, -0.5, 0.5, -0.5, outlineColour, flow, flowTime, flowSpeed);
-        addLine(tessellator, 0.5, -0.5, -0.5, 0.5, 0.5, -0.5, outlineColour, flow, flowTime, flowSpeed);
-        addLine(tessellator, 0.5, -0.5, 0.5, 0.5, 0.5, 0.5, outlineColour, flow, flowTime, flowSpeed);
-        addLine(tessellator, -0.5, -0.5, 0.5, -0.5, 0.5, 0.5, outlineColour, flow, flowTime, flowSpeed);
-        tessellator.draw();
-        GL11.glLineWidth(1.0F);
-    }
-
-    private static int previewCenterX;
-    private static int previewCenterY;
-    private static float previewScale;
-
-    private static void addQuad(Tessellator tessellator,
-                                double x1, double y1, double z1, double x2, double y2, double z2,
-                                double x3, double y3, double z3, double x4, double y4, double z4,
-                                int colour, boolean flow, long flowTime, float flowSpeed) {
-        addPreviewVertex(tessellator, x1, y1, z1, colour, flow, flowTime, flowSpeed);
-        addPreviewVertex(tessellator, x2, y2, z2, colour, flow, flowTime, flowSpeed);
-        addPreviewVertex(tessellator, x3, y3, z3, colour, flow, flowTime, flowSpeed);
-        addPreviewVertex(tessellator, x4, y4, z4, colour, flow, flowTime, flowSpeed);
-    }
-
-    private static void addLine(Tessellator tessellator,
-                                double x1, double y1, double z1, double x2, double y2, double z2,
-                                int colour, boolean flow, long flowTime, float flowSpeed) {
-        addPreviewVertex(tessellator, x1, y1, z1, colour, flow, flowTime, flowSpeed);
-        addPreviewVertex(tessellator, x2, y2, z2, colour, flow, flowTime, flowSpeed);
-    }
-
-    private static void addPreviewVertex(Tessellator tessellator, double x, double y, double z,
-                                         int colour, boolean flow, long flowTime, float flowSpeed) {
-        double[] p = transformPreview(x, y, z, previewCenterX, previewCenterY, previewScale);
-        if (flow) {
-            RenderHelper.setVertexColor(tessellator,
-                    Rainbow.colorAt(p[0], p[1], 0.0D, flowTime, flowSpeed, ColorUtil.alpha(colour)));
-        } else {
-            RenderHelper.setVertexColor(tessellator, colour);
-        }
-        tessellator.addVertex(p[0], p[1], 0.0D);
     }
 
     @Override

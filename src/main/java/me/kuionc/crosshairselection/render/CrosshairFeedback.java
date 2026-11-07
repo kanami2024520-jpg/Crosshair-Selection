@@ -150,40 +150,8 @@ public final class CrosshairFeedback {
         return level;
     }
 
-    /**
-     * Bow-style separation. Kept as a function of the shared level so holding a button and
-     * repeated clicks behave the same as the other styles.
-     */
-    public static float spread() {
-        return level;
-    }
-
-    /** Wave style shares the continuous level as well. */
-    public static float wave() {
-        return level;
-    }
-
-    /** 0..1 attack kick, kept for the punch style's outer ring. */
-    public static float punch() {
-        return level;
-    }
-
-    /** 0..1 placement pulse, kept for the punch style's ripple. */
-    public static float placePulse() {
-        return level;
-    }
-
     private static boolean isLocalPlayer(EntityPlayer player) {
         Minecraft minecraft = McRef.get();
         return minecraft != null && player != null && player == minecraft.thePlayer;
-    }
-
-    /** Explicit trigger, used by the settings screens so the feedback can be previewed. */
-    public static void triggerAttack() {
-        notifyAttack();
-    }
-
-    public static void triggerPlace() {
-        notifyPlace();
     }
 }

@@ -11,6 +11,7 @@ import net.minecraft.world.World;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
+import static me.kuionc.crosshairselection.compat.Reflect.*;
 
 /**
  * ProjectRed wires expose intentionally large selection boxes (about 8px wide) while the
@@ -274,31 +275,14 @@ public final class ProjectRedWireShapeProvider implements ShapeProvider {
         }
     }
 
-    private static Class<?> classOrNull(String name) {
-        try {
-            return Class.forName(name);
-        } catch (Throwable ignored) {
-            return null;
-        }
-    }
 
+    /** Scala object（MODULE$）实例；PR 的渲染器是 object。 */
     private static Object module(Class<?> owner) {
         if (owner == null) {
             return null;
         }
         try {
             return owner.getField("MODULE$").get(null);
-        } catch (Throwable ignored) {
-            return null;
-        }
-    }
-
-    private static Method methodOrNull(Class<?> owner, String name, Class<?>... args) {
-        if (owner == null) {
-            return null;
-        }
-        try {
-            return owner.getMethod(name, args);
         } catch (Throwable ignored) {
             return null;
         }

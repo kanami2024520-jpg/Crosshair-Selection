@@ -157,7 +157,7 @@ public final class GtOverlayRenderer {
         if (shape.getKind() == OutlineShape.Kind.UNION) {
             for (AxisAlignedBB box : shape.getBoxes()) {
                 AxisAlignedBB expanded = margin > 0.0D ? box.expand(margin, margin, margin) : box;
-                ThickLineRenderer.drawBox3D(expanded, cameraX, cameraY, cameraZ, colour, thickness);
+                OutlineSegmentRenderer.drawBox3D(expanded, cameraX, cameraY, cameraZ, colour, thickness);
             }
             return;
         }
@@ -167,7 +167,7 @@ public final class GtOverlayRenderer {
         // The extra GT margin is applied outside the block on purpose: expandWithinBlock clamps to
         // the block cell, so a full block would never show any margin at all.
         AxisAlignedBB box = margin > 0.0D ? shape.getBox().expand(margin, margin, margin) : shape.getBox();
-        ThickLineRenderer.drawBox3D(box, cameraX, cameraY, cameraZ, colour, thickness);
+        OutlineSegmentRenderer.drawBox3D(box, cameraX, cameraY, cameraZ, colour, thickness);
     }
 
     private static void resetSmooth() {
@@ -247,7 +247,7 @@ public final class GtOverlayRenderer {
         double x2 = cx + ux[0] * du2 + uy[0] * dv2;
         double y2 = cy + ux[1] * du2 + uy[1] * dv2;
         double z2 = cz + ux[2] * du2 + uy[2] * dv2;
-        ThickLineRenderer.drawLine3D(x1, y1, z1, x2, y2, z2,
+        OutlineSegmentRenderer.drawLine(x1, y1, z1, x2, y2, z2,
                 cameraX, cameraY, cameraZ, colour, thickness * line.weight);
     }
 

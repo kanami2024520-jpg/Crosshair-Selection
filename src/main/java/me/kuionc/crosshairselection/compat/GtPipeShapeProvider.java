@@ -10,6 +10,7 @@ import net.minecraft.world.World;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
+import static me.kuionc.crosshairselection.compat.Reflect.*;
 
 /**
  * GregTech pipes and cables. GT renders them as square beams, so the outline uses the same
@@ -114,22 +115,4 @@ public final class GtPipeShapeProvider implements ShapeProvider {
         }
     }
 
-    private static Class<?> classOrNull(String name) {
-        try {
-            return Class.forName(name);
-        } catch (Throwable ignored) {
-            return null;
-        }
-    }
-
-    private static Method methodOrNull(Class<?> owner, String name) {
-        if (owner == null) {
-            return null;
-        }
-        try {
-            return owner.getMethod(name);
-        } catch (Throwable ignored) {
-            return null;
-        }
-    }
 }

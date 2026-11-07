@@ -15,6 +15,7 @@ import net.minecraftforge.common.util.ForgeDirection;
 import java.lang.reflect.Method;
 import java.util.List;
 import me.kuionc.crosshairselection.util.McRef;
+import static me.kuionc.crosshairselection.compat.Reflect.*;
 
 /**
  * GT machines and pipes can carry a cover plate on a face. The block shape is still the pipe
@@ -262,22 +263,4 @@ public final class GtCoverShapeProvider implements ShapeProvider {
         return AxisAlignedBB.getBoundingBox(minX, minY, minZ, maxX, maxY, maxZ);
     }
 
-    private static Class<?> classOrNull(String name) {
-        try {
-            return Class.forName(name);
-        } catch (Throwable ignored) {
-            return null;
-        }
-    }
-
-    private static Method methodOrNull(Class<?> owner, String name, Class<?>... params) {
-        if (owner == null) {
-            return null;
-        }
-        try {
-            return owner.getMethod(name, params);
-        } catch (Throwable ignored) {
-            return null;
-        }
-    }
 }

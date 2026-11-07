@@ -9,9 +9,7 @@ import me.kuionc.crosshairselection.render.GtFaceGeometry;
 import me.kuionc.crosshairselection.render.SelectionBoxRenderer;
 import me.kuionc.crosshairselection.render.RenderBackend;
 import me.kuionc.crosshairselection.render.RenderHelper;
-import me.kuionc.crosshairselection.render.ShaderSupport;
 import me.kuionc.crosshairselection.config.GtXStyle;
-import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.ScaledResolution;
 import me.kuionc.crosshairselection.util.McRef;
 
@@ -304,29 +302,5 @@ public final class PreviewPanel {
         RenderHelper.drawLineSegment(x1, y1, x2, y2, nx, ny, colour);
     }
 
-    /** Draws the input marker in the configured style. */
-    private static void drawMarker(int x, int y, int size, int colour) {
-        switch (GtOverlayConfig.xStyle) {
-            case FILL:
-                RenderHelper.drawRect(x - size / 2, y - size / 2, x + size / 2, y + size / 2, colour);
-                break;
-            case ARROW:
-                RenderHelper.drawRect(x - size, y, x + size + 1, y + 1, colour);
-                RenderHelper.drawRect(x, y - size, x + 1, y + 1, colour);
-                RenderHelper.drawRect(x + size / 2, y - size / 2, x + size + 1, y + size / 2, colour);
-                break;
-            case FULL_X:
-                RenderHelper.drawRect(x - size, y + size, x + size + 1, y + size + 1, colour);
-                RenderHelper.drawRect(x - size, y + size - 1, x + size + 1, y + size, colour);
-                RenderHelper.drawRect(x - size, y - size, x + size + 1, y - size + 1, colour);
-                RenderHelper.drawRect(x - size, y - size + 1, x + size + 1, y - size + 2, colour);
-                break;
-            case CROSS:
-            default:
-                RenderHelper.drawRect(x - size, y, x + size + 1, y + 1, colour);
-                RenderHelper.drawRect(x, y - size, x + 1, y + size + 1, colour);
-                break;
-        }
-    }
 
 }
