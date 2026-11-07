@@ -75,6 +75,9 @@ public class SelectionBoxConfig {
     @Config.Comment("Draw the inner fill inside the selection box.")
     public static boolean showFill = false;
 
+    @Config.Comment("Log which part the AE cable bus selection picked. Only for troubleshooting.")
+    public static boolean debugPartSelection = false;
+
     @Config.Comment("Animate the inner fill.")
     public static boolean blink = true;
 
@@ -100,5 +103,6 @@ public class SelectionBoxConfig {
         transitionDuration = 0.15F;
         showFill = false;
         blink = true;
+        debugPartSelection = false;
     }
 }
