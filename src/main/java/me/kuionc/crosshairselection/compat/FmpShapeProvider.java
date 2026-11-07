@@ -17,6 +17,12 @@ import java.util.List;
  * Forge Multipart: every part knows its render/collision/occlusion bounds. The hit data selects
  * the part under the crosshair; occlusion boxes calibrate the slightly larger collision boxes
  * back to the visible wire body.
+ *
+ * <p><b>注意：</b>如果命中的部件是 AE 的 {@code appeng.fmp.CableBusPart}，不要在这里处理。
+ * 它的 {@code getCollisionBoxes()} 返回整条总线（线缆 + 终端 + 伪装板）的并集，
+ * 在这里画会变成「两个 AE 部件一起被选上」。这类方块由 {@link Ae2ShapeProvider} 先接手
+ * （它在 {@code ShapeCollector} 里的顺序更靠前），用 AE 自己的 {@code selectPart} 精确到一个部件。
+ * 这条路径正是被 ProjectRed 红色合金丝触发的：它的存在会把 AE 总线转换成 FMP 部件。
  */
 public final class FmpShapeProvider implements ShapeProvider {
 

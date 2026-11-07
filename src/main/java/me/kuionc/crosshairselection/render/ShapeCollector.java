@@ -19,6 +19,11 @@ import java.util.List;
 
 /**
  * Chooses the boxes/cylinders used to draw the selection outline.
+ *
+ * <p>顺序有意义：{@code Ae2ShapeProvider} 必须排在 {@code FmpShapeProvider} 前面。
+ * AE 总线被 Forge Multipart 接管后（例如同格放了 ProjectRed 红合金丝）会变成
+ * {@code appeng.fmp.CableBusPart}，而 FMP 视角下它的碰撞盒是整条总线；
+ * 由 AE 自己先接手才能精确到单个部件。
  */
 public final class ShapeCollector {
 

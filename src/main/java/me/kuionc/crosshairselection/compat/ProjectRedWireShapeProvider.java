@@ -16,6 +16,11 @@ import java.util.List;
  * ProjectRed wires expose intentionally large selection boxes (about 8px wide) while the
  * rendered wire model is only about 2px wide. Shrink each selection box on its cross-section
  * axis so the outline follows the visible wire instead of drawing a ring around it.
+ *
+ * <p><b>和 AE 的交互：</b>把红色合金丝放进已经有 AE 电缆总线的方块时，AE 会把自己的
+ * {@code TileCableBus} 转换成 Forge Multipart 里的 {@code appeng.fmp.CableBusPart}。
+ * 转换后 AE 的选择由 {@link Ae2ShapeProvider} 处理（它会识别 FMP 载体），本类只负责
+ * PR 线自身的精确裁剪。排查「AE 线 + 终端一起被选上」时先看这一点，不要只怀疑 PR 线。
  */
 public final class ProjectRedWireShapeProvider implements ShapeProvider {
 
