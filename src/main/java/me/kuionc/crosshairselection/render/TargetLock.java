@@ -24,11 +24,13 @@ import net.minecraft.world.World;
 public final class TargetLock {
 
     /** 普通情况下新目标需要稳定这么久才切换（约 3 帧）。 */
-    private static final long NORMAL_CONFIRM_MILLIS = 50L;
+    private static final long NORMAL_CONFIRM_MILLIS = 0L;
     /** 检测到“来回横跳”后，需要稳定这么久才允许切换。 */
-    private static final long FLAP_CONFIRM_MILLIS = 300L;
+    private static final long FLAP_CONFIRM_MILLIS = 50L;
+    /** 同一方块内换命中面需要的稳定时间；比方块切换稍长。 */
+    private static final long SIDE_CONFIRM_MILLIS = 50L;
     /** 判定“来回横跳”的时间窗口：窗口内切换过至少两次。 */
-    private static final long FLAP_WINDOW_MILLIS = 400L;
+    private static final long FLAP_WINDOW_MILLIS = 250L;
     /** 最近几次真正切换的时间戳。 */
     private static final long[] RECENT_SWITCHES = new long[4];
     /** 判定命中点是否落在共享面上的误差（格）。 */
@@ -70,49 +72,91 @@ public final class TargetLock {
     }
 
     private static MovingObjectPosition resolve(MovingObjectPosition hit, long now) {
-        long required = isFlapping(now) ? FLAP_CONFIRM_MILLIS : NORMAL_CONFIRM_MILLIS;
+        boolean flapping = isFlapping(now);
+        long required = flapping ? FLAP_CONFIRM_MILLIS : NORMAL_CONFIRM_MILLIS;
+        String reason;
         if (current == null) {
             current = hit;
             candidate = null;
             candidateSince = 0L;
-            return current;
-        }
-        if (sameBlock(hit, current)) {
+            reason = "ACQUIRE";
+        } else if (sameBlock(hit, current)) {
             // 同一方块内，如果命中面在贴边处反复跳，也要求新面稳定一段时间。
             // 覆盖板选择用的正是 sideHit，这一层能挡住“同一块管道上两个面来回切”。
+            reason = "SAME";
             if (hit.sideHit != current.sideHit) {
                 if (candidate == null || !sameBlock(candidate, hit)
                         || candidate.sideHit != hit.sideHit) {
                     candidate = hit;
                     candidateSince = now;
                 }
-                if (now - candidateSince < required) {
-                    return current;
+                long sideRequired = Math.max(required, SIDE_CONFIRM_MILLIS);
+                if (now - candidateSince < sideRequired) {
+                    reason = flapping ? "FLAP_HOLD_SIDE" : "KEEP_SIDE";
+                } else {
+                    recordSwitch(now);
+                    reason = "SWITCH_SIDE";
                 }
-                recordSwitch(now);
             }
-            current = hit;
-            candidate = null;
-            candidateSince = 0L;
-            return current;
-        }
-        if (ambiguityAtSharedFace(current, hit)) {
+            if (!reason.startsWith("KEEP") && !reason.startsWith("FLAP")) {
+                current = hit;
+                candidate = null;
+                candidateSince = 0L;
+            }
+        } else if (ambiguityAtSharedFace(current, hit)) {
             // 射线正好穿过相邻方块共享的面：平局，保持当前方块。
             candidate = null;
             candidateSince = 0L;
-            return current;
+            reason = "SHARED_FACE";
+        } else {
+            if (candidate == null || !sameBlock(hit, candidate)) {
+                candidate = hit;
+                candidateSince = now;
+            }
+            if (now - candidateSince >= required) {
+                recordSwitch(now);
+                current = hit;
+                candidate = null;
+                candidateSince = 0L;
+                reason = "SWITCH";
+            } else {
+                reason = flapping ? "FLAP_HOLD" : "KEEP_CONFIRM";
+            }
         }
-        if (candidate == null || !sameBlock(hit, candidate)) {
-            candidate = hit;
-            candidateSince = now;
-        }
-        if (now - candidateSince >= required) {
-            recordSwitch(now);
-            current = hit;
-            candidate = null;
-            candidateSince = 0L;
-        }
+        logDecision(hit, reason, flapping, required, now);
         return current;
+    }
+
+    /** 只在状态签名变化时写一行，避免按帧刷屏。 */
+    private static String lastSignature;
+
+    private static void logDecision(MovingObjectPosition hit, String reason, boolean flapping,
+                                    long required, long now) {
+        if (!SelectionDebugLog.enabled()) {
+            return;
+        }
+        String signature = reason
+                + "|raw=" + block(hit) + ",s=" + hit.sideHit
+                + "|lock=" + block(current) + ",s=" + current.sideHit
+                + "|cand=" + (candidate == null ? "none" : block(candidate) + ",s=" + candidate.sideHit)
+                + "|age=" + (candidate == null ? -1 : (now - candidateSince))
+                + "|flap=" + flapping
+                + "|req=" + required;
+        if (signature.equals(lastSignature)) {
+            return;
+        }
+        lastSignature = signature;
+        SelectionDebugLog.log("TGT", signature
+                + " hit=" + (hit.hitVec == null ? "null" : format(hit.hitVec)));
+    }
+
+    private static String block(MovingObjectPosition hit) {
+        return hit == null ? "null" : "(" + hit.blockX + "," + hit.blockY + "," + hit.blockZ + ")";
+    }
+
+    private static String format(Vec3 vec) {
+        return String.format(java.util.Locale.ROOT, "(%.3f,%.3f,%.3f)",
+                vec.xCoord, vec.yCoord, vec.zCoord);
     }
 
     /** 最近 400ms 内切换过至少两次 → 认为在交界处来回横跳。 */
@@ -137,6 +181,7 @@ public final class TargetLock {
         candidateSince = 0L;
         lastInput = null;
         lastOutput = null;
+        lastSignature = null;
         java.util.Arrays.fill(RECENT_SWITCHES, 0L);
     }
 

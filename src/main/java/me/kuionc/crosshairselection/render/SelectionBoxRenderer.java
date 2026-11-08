@@ -23,14 +23,14 @@ public final class SelectionBoxRenderer {
     private static int lastX;
     private static int lastY;
     private static int lastZ;
-    private static int fromX;
-    private static int fromY;
-    private static int fromZ;
+    private static double fromX;
+    private static double fromY;
+    private static double fromZ;
     private static long transitionStart;
-    /** 上次真正切换方块的时间，用于判定“快速连续切换”并跳过动画。 */
-    private static long lastSwitchMillis;
-    /** 两次切换间隔小于这个值时直接吸附，不再播放平滑过渡。 */
-    private static final long RAPID_SWITCH_MILLIS = 250L;
+    /** 上一帧实际应用的位置偏移，用来让中途切换从“看得见的位置”继续动画。 */
+    private static double displayOffsetX;
+    private static double displayOffsetY;
+    private static double displayOffsetZ;
 
     private SelectionBoxRenderer() {
     }
@@ -65,17 +65,17 @@ public final class SelectionBoxRenderer {
             lastZ = z;
             transitionStart = 0L;
         } else if (x != lastX || y != lastY || z != lastZ) {
-            fromX = lastX;
-            fromY = lastY;
-            fromZ = lastZ;
+            // 从上一帧“实际显示的位置”继续动画，而不是从上一个目标方块起跳。
+            // 这样中途切换时选框是顺着当前位置滑过去，不会先跳一下。
+            fromX = lastX + displayOffsetX;
+            fromY = lastY + displayOffsetY;
+            fromZ = lastZ + displayOffsetZ;
             lastX = x;
             lastY = y;
             lastZ = z;
-            // 交界处如果还在快速来回切，动画永远播不完，看起来就是选框在滑动。
-            // 这种情况下直接吸附到新位置，让画面干脆地切换。
-            boolean rapid = now - lastSwitchMillis < RAPID_SWITCH_MILLIS;
-            transitionStart = rapid ? 0L : now;
-            lastSwitchMillis = now;
+            transitionStart = now;
+            SelectionDebugLog.log("ANIM", "from=(" + fromX + "," + fromY + "," + fromZ
+                    + ") to=(" + x + "," + y + "," + z + ")");
         }
         if (SelectionBoxConfig.smoothTransition && transitionStart > 0L) {
             float duration = Math.max(0.05F, SelectionBoxConfig.transitionDuration) * 1000.0F;
@@ -83,12 +83,16 @@ public final class SelectionBoxRenderer {
             if (t >= 1.0F) {
                 transitionStart = 0L;
             } else {
-                double eased = 1.0D - Math.pow(1.0D - t, 3.0D);
+                // smoothstep：两端都缓，比“快出”更柔和。
+                double eased = t * t * (3.0D - 2.0D * t);
                 offsetX = (fromX - x) * (1.0D - eased);
                 offsetY = (fromY - y) * (1.0D - eased);
                 offsetZ = (fromZ - z) * (1.0D - eased);
             }
         }
+        displayOffsetX = offsetX;
+        displayOffsetY = offsetY;
+        displayOffsetZ = offsetZ;
         Block block = world.getBlock(x, y, z);
         AxisAlignedBB primary = getSelectedBox(world, block, x, y, z);
         if (primary == null) {
@@ -331,7 +335,9 @@ public final class SelectionBoxRenderer {
         TargetLock.reset();
         lastWorld = null;
         hasSelection = false;
-        lastSwitchMillis = 0L;
+        displayOffsetX = 0.0D;
+        displayOffsetY = 0.0D;
+        displayOffsetZ = 0.0D;
         transitionStart = 0L;
     }
 
