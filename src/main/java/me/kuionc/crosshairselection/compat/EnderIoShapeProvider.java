@@ -14,6 +14,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import static me.kuionc.crosshairselection.compat.Reflect.*;
 
 /**
  * EnderIO conduit bundles expose their geometry as {@code List<CollidableComponent>}; each
@@ -177,22 +178,4 @@ public final class EnderIoShapeProvider implements ShapeProvider {
         }
     }
 
-    private static Class<?> classOrNull(String name) {
-        try {
-            return Class.forName(name);
-        } catch (Throwable ignored) {
-            return null;
-        }
-    }
-
-    private static Method methodOrNull(Class<?> owner, String name) {
-        if (owner == null) {
-            return null;
-        }
-        try {
-            return owner.getMethod(name);
-        } catch (Throwable ignored) {
-            return null;
-        }
-    }
 }

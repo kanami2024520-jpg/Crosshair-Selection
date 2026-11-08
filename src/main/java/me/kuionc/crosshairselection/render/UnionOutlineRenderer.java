@@ -54,7 +54,7 @@ public final class UnionOutlineRenderer {
 
         if (expanded.size() == 1) {
             AxisAlignedBB box = expanded.get(0);
-            ThickLineRenderer.drawBox3D(box, cameraX, cameraY, cameraZ, colour, thickness);
+            OutlineSegmentRenderer.drawBox3D(box, cameraX, cameraY, cameraZ, colour, thickness);
             return;
         }
 
@@ -260,7 +260,7 @@ public final class UnionOutlineRenderer {
                 z1 = zs[iz + 1];
             }
 
-            ThickLineRenderer.drawLine3D(x0, y0, z0, x1, y1, z1,
+            OutlineSegmentRenderer.drawLine(x0, y0, z0, x1, y1, z1,
                     cameraX, cameraY, cameraZ, colour, thickness);
         }
     }

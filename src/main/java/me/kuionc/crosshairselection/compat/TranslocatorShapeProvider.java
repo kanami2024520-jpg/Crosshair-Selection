@@ -10,6 +10,7 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
+import static me.kuionc.crosshairselection.compat.Reflect.*;
 
 /**
  * Translocator plates are one block made from a base plate and a movable centre button.
@@ -74,35 +75,4 @@ public final class TranslocatorShapeProvider implements ShapeProvider {
         }
     }
 
-    private static Class<?> classOrNull(String name) {
-        try {
-            return Class.forName(name);
-        } catch (Throwable ignored) {
-            return null;
-        }
-    }
-
-    private static Method methodOrNull(Class<?> owner, String name, Class<?>... args) {
-        if (owner == null) {
-            return null;
-        }
-        try {
-            return owner.getMethod(name, args);
-        } catch (Throwable ignored) {
-            return null;
-        }
-    }
-
-    private static Field fieldOrNull(Class<?> owner, String name) {
-        if (owner == null) {
-            return null;
-        }
-        try {
-            Field field = owner.getField(name);
-            field.setAccessible(true);
-            return field;
-        } catch (Throwable ignored) {
-            return null;
-        }
-    }
 }

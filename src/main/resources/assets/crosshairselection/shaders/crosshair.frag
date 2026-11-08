@@ -10,20 +10,10 @@
 //   - 所有距离都以「物理像素」为单位，GUI 缩放已在 Java 端乘好；
 //   - 反馈与蓄力的数值都是 0..1，由 CrosshairFeedback / TicCrosshairCompat 提供。
 
-// 余弦缓动：两端慢、中间快。
 // 量子闪烁。相位由 Java 的 GlitchClock 积分得到，另外两个值供撕裂与扫描线使用。
 uniform float uGlitchPhase;
 uniform float uGlitchStep;
 uniform float uGlitchTime;
-
-float easeCosine(float x) {
-    return 0.5 - 0.5 * cos(6.28318530718 * x);
-}
-
-// 三角波：线性往返。
-float easeTriangle(float x) {
-    return abs(fract(x) * 2.0 - 1.0);
-}
 
 float hash21(vec2 p) {
     p = fract(p * vec2(123.34, 456.21));
@@ -40,11 +30,6 @@ float valueNoise(vec2 p) {
     float c = hash21(i + vec2(0.0, 1.0));
     float d = hash21(i + vec2(1.0, 1.0));
     return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
-}
-
-// 两层噪声足以形成自然的漂移，又不会看出明显的重复。
-float flowNoise(vec2 p) {
-    return valueNoise(p) * 0.65 + valueNoise(p * 2.17 + 17.3) * 0.35;
 }
 
 // 时间曲线，mode 与 FlowSettings.Motion 的序号一致：0 线性 / 1 余弦 / 2 三角 / 3 噪声
@@ -111,45 +96,6 @@ vec3 glitchColour(vec2 p, vec4 colourParams, float density) {
     float t = colourParams.x + fract(band + uGlitchPhase) * colourParams.y;
     return hsvToRgb(vec3(fract(t), colourParams.z, colourParams.w));
 }
-
-/** 条带遮罩：带内为 1，带外淡出到 0。 */
-float bandMask(float distanceAlong, float bandWidth, float softness, int edgeMode) {
-    if (edgeMode == 0) {
-        return step(distanceAlong, bandWidth);
-    }
-    if (edgeMode == 2) {
-        // Trail: brightest at the head, exponential falloff behind it.
-        return exp(-max(distanceAlong, 0.0) / max(softness, 0.001));
-    }
-    return smoothstep(bandWidth + softness, bandWidth - softness, distanceAlong);
-}
-
-/** 扫光遮罩：进度之前填满，边缘可柔和或拖尾。 */
-float sweepMask(float position01, float progress, float softness, int edgeMode) {
-    float d = position01 - progress;
-    if (d <= 0.0) {
-        return 1.0;
-    }
-    if (edgeMode == 0) {
-        return 0.0;
-    }
-    if (edgeMode == 2) {
-        return exp(-d / max(softness, 0.001));
-    }
-    return 1.0 - smoothstep(0.0, max(softness, 0.001), d);
-}
-
-/** 混合模式：0 普通 / 1 加亮 / 2 滤色 */
-vec3 blendColour(vec3 src, vec3 dst, int blendMode, float glow) {
-    if (blendMode == 1) {
-        return min(dst + src * (1.0 + glow), vec3(1.0));
-    }
-    if (blendMode == 2) {
-        return 1.0 - (1.0 - dst) * (1.0 - src);
-    }
-    return src;
-}
-
 
 // 准星的屏幕位置与屏幕尺寸，单位均为物理像素。
 uniform vec2 uCentre;

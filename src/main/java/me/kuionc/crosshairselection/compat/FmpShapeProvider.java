@@ -12,6 +12,7 @@ import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import static me.kuionc.crosshairselection.compat.Reflect.*;
 
 /**
  * Forge Multipart: every part knows its render/collision/occlusion bounds. The hit data selects
@@ -237,22 +238,4 @@ public final class FmpShapeProvider implements ShapeProvider {
                 box.maxX + x, box.maxY + y, box.maxZ + z);
     }
 
-    private static Class<?> classOrNull(String name) {
-        try {
-            return Class.forName(name);
-        } catch (Throwable ignored) {
-            return null;
-        }
-    }
-
-    private static Method methodOrNull(Class<?> owner, String name) {
-        if (owner == null) {
-            return null;
-        }
-        try {
-            return owner.getMethod(name);
-        } catch (Throwable ignored) {
-            return null;
-        }
-    }
 }
