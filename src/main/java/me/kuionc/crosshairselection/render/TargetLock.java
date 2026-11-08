@@ -53,7 +53,20 @@ public final class TargetLock {
             return current;
         }
         if (sameBlock(hit, current)) {
-            // 同一方块：用最新的命中点，部件级选择保持精确。
+            // 同一方块内，如果命中面在贴边处反复跳，也要求新面连续两帧确认。
+            // 覆盖板选择用的正是 sideHit，这一层能挡住“同一块管道上两个面来回切”。
+            if (hit.sideHit != current.sideHit) {
+                if (candidate == null || !sameBlock(candidate, hit)
+                        || candidate.sideHit != hit.sideHit) {
+                    candidate = hit;
+                    candidateFrames = 1;
+                } else {
+                    candidateFrames++;
+                }
+                if (candidateFrames < CONFIRM_FRAMES) {
+                    return current;
+                }
+            }
             current = hit;
             candidate = null;
             candidateFrames = 0;
