@@ -23,8 +23,8 @@ import net.minecraft.world.World;
  */
 public final class TargetLock {
 
-    /** 新目标需要连续命中的帧数。 */
-    private static final int CONFIRM_FRAMES = 2;
+    /** 新目标需要连续命中的帧数（按渲染帧计，不是按调用次数）。 */
+    private static final int CONFIRM_FRAMES = 3;
     /** 判定命中点是否落在共享面上的误差（格）。 */
     private static final double PLANE_EPSILON = 0.01D;
 
@@ -32,6 +32,10 @@ public final class TargetLock {
     private static MovingObjectPosition current;
     private static MovingObjectPosition candidate;
     private static int candidateFrames;
+    /** 同一帧里 GT 九格会调用多次，这里保证确认计数每帧只推进一次。 */
+    private static long lastCallMillis;
+    private static MovingObjectPosition lastInput;
+    private static MovingObjectPosition lastOutput;
 
     private TargetLock() {
     }
@@ -46,6 +50,21 @@ public final class TargetLock {
             reset();
             return null;
         }
+        if (hit == lastInput) {
+            // 同一帧的重复调用（GT 的 drawGrid 会进来 3 次），直接复用上一次结果。
+            return lastOutput;
+        }
+        long now = System.currentTimeMillis();
+        boolean newFrame = now != lastCallMillis;
+        lastCallMillis = now;
+
+        MovingObjectPosition result = resolve(hit, newFrame);
+        lastInput = hit;
+        lastOutput = result;
+        return result;
+    }
+
+    private static MovingObjectPosition resolve(MovingObjectPosition hit, boolean newFrame) {
         if (current == null) {
             current = hit;
             candidate = null;
@@ -53,14 +72,14 @@ public final class TargetLock {
             return current;
         }
         if (sameBlock(hit, current)) {
-            // 同一方块内，如果命中面在贴边处反复跳，也要求新面连续两帧确认。
+            // 同一方块内，如果命中面在贴边处反复跳，也要求新面连续确认。
             // 覆盖板选择用的正是 sideHit，这一层能挡住“同一块管道上两个面来回切”。
             if (hit.sideHit != current.sideHit) {
                 if (candidate == null || !sameBlock(candidate, hit)
                         || candidate.sideHit != hit.sideHit) {
                     candidate = hit;
                     candidateFrames = 1;
-                } else {
+                } else if (newFrame) {
                     candidateFrames++;
                 }
                 if (candidateFrames < CONFIRM_FRAMES) {
@@ -81,7 +100,7 @@ public final class TargetLock {
         if (candidate == null || !sameBlock(hit, candidate)) {
             candidate = hit;
             candidateFrames = 1;
-        } else {
+        } else if (newFrame) {
             candidateFrames++;
         }
         if (candidateFrames >= CONFIRM_FRAMES) {
@@ -96,6 +115,8 @@ public final class TargetLock {
         current = null;
         candidate = null;
         candidateFrames = 0;
+        lastInput = null;
+        lastOutput = null;
     }
 
     /**

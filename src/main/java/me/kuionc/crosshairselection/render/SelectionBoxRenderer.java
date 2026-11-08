@@ -27,6 +27,10 @@ public final class SelectionBoxRenderer {
     private static int fromY;
     private static int fromZ;
     private static long transitionStart;
+    /** 上次真正切换方块的时间，用于判定“快速连续切换”并跳过动画。 */
+    private static long lastSwitchMillis;
+    /** 两次切换间隔小于这个值时直接吸附，不再播放平滑过渡。 */
+    private static final long RAPID_SWITCH_MILLIS = 250L;
 
     private SelectionBoxRenderer() {
     }
@@ -67,7 +71,11 @@ public final class SelectionBoxRenderer {
             lastX = x;
             lastY = y;
             lastZ = z;
-            transitionStart = now;
+            // 交界处如果还在快速来回切，动画永远播不完，看起来就是选框在滑动。
+            // 这种情况下直接吸附到新位置，让画面干脆地切换。
+            boolean rapid = now - lastSwitchMillis < RAPID_SWITCH_MILLIS;
+            transitionStart = rapid ? 0L : now;
+            lastSwitchMillis = now;
         }
         if (SelectionBoxConfig.smoothTransition && transitionStart > 0L) {
             float duration = Math.max(0.05F, SelectionBoxConfig.transitionDuration) * 1000.0F;
@@ -323,6 +331,7 @@ public final class SelectionBoxRenderer {
         TargetLock.reset();
         lastWorld = null;
         hasSelection = false;
+        lastSwitchMillis = 0L;
         transitionStart = 0L;
     }
 
