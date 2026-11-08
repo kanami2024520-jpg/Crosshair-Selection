@@ -2,37 +2,29 @@ package me.kuionc.crosshairselection.gui;
 
 import me.kuionc.crosshairselection.config.FlowSettings;
 import me.kuionc.crosshairselection.gui.widgets.HsvSquare;
-import me.kuionc.crosshairselection.gui.widgets.OptionSlider;
-import me.kuionc.crosshairselection.gui.widgets.SliderHost;
+import me.kuionc.crosshairselection.gui.widgets.ValueBar;
 import me.kuionc.crosshairselection.render.FlowPreview;
 import me.kuionc.crosshairselection.util.ColorUtil;
 import net.minecraft.client.gui.GuiButton;
 import net.minecraft.client.gui.GuiScreen;
 import net.minecraft.util.StatCollector;
-import org.lwjgl.opengl.GL11;
 
 /**
  * Visual editor for the flowing gradient.
  *
- * <p>A hue strip with a draggable start and end handle selects the hue range, and a saturation /
- * brightness square picks the tint. The preview bar shows the resulting gradient so the numeric
- * sliders are no longer the only way to see what the colours look like.
+ * <p>Left column: hue strip, live gradient preview, brightness/opacity/density bars and
+ * read-outs. Right column: a large rectangular saturation/brightness square.
  */
-public class FlowColorScreen extends GuiScreen implements SliderHost {
+public class FlowColorScreen extends GuiScreen {
 
     private static final int BACK = 1;
     private static final int RESET = 2;
-    private static final int BRIGHTNESS = 10;
-    private static final int OPACITY = 11;
-    private static final int DENSITY = 12;
 
     private static final int STRIP_HEIGHT = 28;
-    private static final int MAX_SQUARE_SIZE = 160;
     private static final int HANDLE_SIZE = 6;
-    /** Half width of the centred preview panel plus a margin; everything stays outside this band. */
-    private static final int PREVIEW_HALF_WIDTH = 80;
-    private static final int LABEL_GAP = 12;
-    private static final int LABEL_WIDTH = 150;
+    private static final int BAR_HEIGHT = 16;
+    private static final int BAR_STEP = 30;
+    private static final int BAR_COUNT = 3;
 
     private final GuiScreen parent;
     private final FlowSettings flow;
@@ -42,20 +34,26 @@ public class FlowColorScreen extends GuiScreen implements SliderHost {
     private int stripX;
     private int stripY;
     private int stripWidth;
-    private int squareX;
-    private int squareY;
-    private int squareSize;
-    private int readoutX;
-    private int readoutY;
-    /** Left edge of the gradient bar under the strip and its width. */
     private int previewX;
     private int previewWidth;
+    private int pickerX;
+    private int pickerY;
+    private int pickerWidth;
+    private int pickerHeight;
+    private int barX;
+    private int barWidth;
+    private int barY;
+    private int readoutX;
+    private int readoutY;
 
     private enum Drag {
         NONE,
         START,
         END,
-        SQUARE
+        SQUARE,
+        BRIGHTNESS,
+        OPACITY,
+        DENSITY
     }
 
     private Drag dragging = Drag.NONE;
@@ -70,57 +68,32 @@ public class FlowColorScreen extends GuiScreen implements SliderHost {
     public void initGui() {
         buttonList.clear();
         normaliseHueRange();
-        // The page is split into three bands: a narrow left column for the SV square, the centred
-        // preview panel, and a right column for read-outs. The hue strip spans the left two bands
-        // so it reads as one continuous scale without ever running under the preview.
+
         int margin = 16;
-        // The hue strip now spans the whole page instead of sharing the right band, and the
-        // gradient bar repeats it directly underneath.
         stripX = margin;
         stripWidth = Math.max(80, width - 2 * margin);
         stripY = 40;
         previewX = stripX;
         previewWidth = stripWidth;
 
-        // 整列贴左：色盘、滑杆、读数都以色相条左端为基准。
-        int sliderBlock = 3 * 22 + 6;
-        int readoutBlock = 4 * 18 + 8;
-        squareY = stripY + STRIP_HEIGHT + 52;
-        int availableHeight = height - squareY - sliderBlock - readoutBlock - 44;
-        squareSize = Math.min(MAX_SQUARE_SIZE,
-                Math.max(64, Math.min(availableHeight, width / 4)));
-        squareX = stripX;
-        readoutX = squareX;
+        int contentTop = stripY + STRIP_HEIGHT + 52;
+        // 右侧一整块长方形色盘。
+        pickerWidth = Math.min(360, Math.max(160, Math.round(width * 0.42F)));
+        pickerHeight = Math.min(260, Math.max(120, height - contentTop - 56));
+        pickerX = width - margin - pickerWidth;
+        pickerY = contentTop;
 
-        int sliderY = squareY + squareSize + 8;
-        buttonList.add(new OptionSlider(BRIGHTNESS, squareX, sliderY, squareSize, 18, 0.0F, 1.0F,
-                flow.brightness, false, 2, "crosshairselection.flow_brightness", this));
-        buttonList.add(new OptionSlider(OPACITY, squareX, sliderY + 22, squareSize, 18, 0.0F, 1.0F,
-                flow.opacity, false, 2, "crosshairselection.flow_opacity", this));
-        buttonList.add(new OptionSlider(DENSITY, squareX, sliderY + 44, squareSize, 18, 0.05F, 3.0F,
-                flow.bandDensity, false, 2, "crosshairselection.flow_density", this));
-        readoutY = sliderY + sliderBlock + 4;
+        // 左列：三条拖动条 + 读数，宽度吃掉色盘左边的全部空间。
+        barX = stripX;
+        barWidth = Math.max(100, pickerX - 24 - barX);
+        barY = contentTop;
+        readoutX = barX;
+        readoutY = barY + BAR_COUNT * BAR_STEP + 8;
+
         buttonList.add(new GuiButton(RESET, width / 2 - 105, height - 26, 100, 20,
                 StatCollector.translateToLocal("crosshairselection.flow_colour.reset")));
         buttonList.add(new GuiButton(BACK, width / 2 + 5, height - 26, 100, 20,
                 StatCollector.translateToLocal("crosshairselection.back")));
-    }
-
-    @Override
-    public void onSliderChanged(int optionId, float value) {
-        switch (optionId) {
-            case BRIGHTNESS:
-                flow.brightness = value;
-                break;
-            case OPACITY:
-                flow.opacity = value;
-                break;
-            case DENSITY:
-                flow.bandDensity = value;
-                break;
-            default:
-                break;
-        }
     }
 
     @Override
@@ -140,6 +113,10 @@ public class FlowColorScreen extends GuiScreen implements SliderHost {
         return stripX + Math.round((flow.hueStart + flow.hueRange) * stripWidth);
     }
 
+    private int barTop(int index) {
+        return barY + index * BAR_STEP;
+    }
+
     @Override
     protected void mouseClicked(int mouseX, int mouseY, int button) {
         super.mouseClicked(mouseX, mouseY, button);
@@ -148,9 +125,7 @@ public class FlowColorScreen extends GuiScreen implements SliderHost {
         }
         if (mouseY >= stripY - HANDLE_SIZE && mouseY <= stripY + STRIP_HEIGHT + HANDLE_SIZE) {
             // 整条色带都可以点：按到两个把手的距离选择拖动起点/终点，点哪跳哪。
-            int startX = startHandleX();
-            int endX = endHandleX();
-            if (Math.abs(mouseX - startX) <= Math.abs(mouseX - endX)) {
+            if (Math.abs(mouseX - startHandleX()) <= Math.abs(mouseX - endHandleX())) {
                 dragging = Drag.START;
                 updateStart(mouseX);
             } else {
@@ -159,10 +134,28 @@ public class FlowColorScreen extends GuiScreen implements SliderHost {
             }
             return;
         }
-        if (mouseX >= squareX && mouseX <= squareX + squareSize
-                && mouseY >= squareY && mouseY <= squareY + squareSize) {
+        if (inside(mouseX, mouseY, pickerX, pickerY, pickerWidth, pickerHeight)) {
             dragging = Drag.SQUARE;
             updateSquare(mouseX, mouseY);
+            return;
+        }
+        for (int i = 0; i < BAR_COUNT; i++) {
+            if (inside(mouseX, mouseY, barX, barTop(i), barWidth, BAR_HEIGHT)) {
+                dragging = barDrag(i);
+                updateBar(i, mouseX);
+                return;
+            }
+        }
+    }
+
+    private static Drag barDrag(int index) {
+        switch (index) {
+            case 0:
+                return Drag.BRIGHTNESS;
+            case 1:
+                return Drag.OPACITY;
+            default:
+                return Drag.DENSITY;
         }
     }
 
@@ -179,6 +172,15 @@ public class FlowColorScreen extends GuiScreen implements SliderHost {
             case SQUARE:
                 updateSquare(mouseX, mouseY);
                 break;
+            case BRIGHTNESS:
+                updateBar(0, mouseX);
+                break;
+            case OPACITY:
+                updateBar(1, mouseX);
+                break;
+            case DENSITY:
+                updateBar(2, mouseX);
+                break;
             default:
                 break;
         }
@@ -194,9 +196,6 @@ public class FlowColorScreen extends GuiScreen implements SliderHost {
 
     /**
      * 把色相区间钳在 0..1 之内。
-     *
-     * <p>色条只画 0..1 这一周，如果 hueStart + hueRange 超过 1，终点把手会跑到色条外面，
-     * 超出部分也不会被画出来。拖动和旧配置都在这里归一化。
      */
     private void normaliseHueRange() {
         flow.hueStart = flow.hueStart - (float) Math.floor(flow.hueStart);
@@ -206,8 +205,7 @@ public class FlowColorScreen extends GuiScreen implements SliderHost {
 
     private void updateStart(int mouseX) {
         float value = clamp01((mouseX - stripX) / (float) stripWidth);
-        // 终点保持不动，由起点反推范围；以前用 1 - range 当上限，
-        // 终点不在 1 时会算错，左侧把手也就拖不动了。
+        // 终点保持不动，由起点反推范围。
         float end = flow.hueStart + flow.hueRange;
         flow.hueStart = Math.max(0.0F, Math.min(value, end - 0.01F));
         flow.hueRange = Math.max(0.01F, end - flow.hueStart);
@@ -215,14 +213,33 @@ public class FlowColorScreen extends GuiScreen implements SliderHost {
 
     private void updateEnd(int mouseX) {
         float value = clamp01((mouseX - stripX) / (float) stripWidth);
-        // 终点必须留在色条内，否则超出的色段画不出来。
         float maxRange = Math.max(0.01F, 1.0F - flow.hueStart);
         flow.hueRange = Math.max(0.01F, Math.min(value - flow.hueStart, maxRange));
     }
 
     private void updateSquare(int mouseX, int mouseY) {
-        flow.saturation = clamp01((mouseX - squareX) / (float) squareSize);
-        flow.brightness = 1.0F - clamp01((mouseY - squareY) / (float) squareSize);
+        float[] pick = HsvSquare.pick(pickerX, pickerY, pickerWidth, pickerHeight, mouseX, mouseY);
+        flow.saturation = pick[0];
+        flow.brightness = pick[1];
+    }
+
+    private void updateBar(int index, int mouseX) {
+        float value = ValueBar.pick(barX, barWidth, mouseX);
+        switch (index) {
+            case 0:
+                flow.brightness = value;
+                break;
+            case 1:
+                flow.opacity = value;
+                break;
+            default:
+                flow.bandDensity = 0.05F + value * (3.0F - 0.05F);
+                break;
+        }
+    }
+
+    private static boolean inside(int mouseX, int mouseY, int x, int y, int width, int height) {
+        return mouseX >= x && mouseX <= x + width && mouseY >= y && mouseY <= y + height;
     }
 
     private static float clamp01(float value) {
@@ -232,47 +249,42 @@ public class FlowColorScreen extends GuiScreen implements SliderHost {
     @Override
     public void drawScreen(int mouseX, int mouseY, float partialTicks) {
         drawDefaultBackground();
-        drawCenteredString(fontRendererObj, StatCollector.translateToLocal("crosshairselection.flow_colour.title"),
+        drawCenteredString(fontRendererObj,
+                StatCollector.translateToLocal("crosshairselection.flow_colour.title"),
                 width / 2, 16, 0xFFFFFF);
 
         drawHueStrip();
-        drawSquare();
         drawPreview();
-        // The preview follows the edited target, so leaving for the colour page does not hide it.
-        PreviewPanel.begin(crosshair ? PreviewPanel.Content.CROSSHAIR : PreviewPanel.Content.CUBE, flow);
-        PreviewPanel.drawCentred(width, height);
+        drawPicker();
+        drawBars();
 
-        // Each read-out gets its own banded row so labels can never overlap each other or the
-        // preview panel that shares this area of the screen.
+        drawString(fontRendererObj,
+                StatCollector.translateToLocal("crosshairselection.flow_square_hint"),
+                pickerX, pickerY - 22, 0xA0A0A0);
+        drawString(fontRendererObj,
+                StatCollector.translateToLocal("crosshairselection.flow_brightness_hint"),
+                pickerX, pickerY - 12, 0xA0A0A0);
+
         int row = 18;
         drawReadout("crosshairselection.flow_saturation", flow.saturation, 0, row);
         drawReadout("crosshairselection.flow_brightness", flow.brightness, 1, row);
         drawReadout("crosshairselection.flow_hue_start", flow.hueStart, 2, row);
         drawReadout("crosshairselection.flow_hue_range", flow.hueRange, 3, row);
-        // Explains what the square's vertical axis actually changes.
-        drawString(fontRendererObj,
-                StatCollector.translateToLocal("crosshairselection.flow_square_hint"),
-                squareX, squareY - 22, 0xA0A0A0);
-        drawString(fontRendererObj,
-                StatCollector.translateToLocal("crosshairselection.flow_brightness_hint"),
-                squareX, squareY - 12, 0xA0A0A0);
 
         super.drawScreen(mouseX, mouseY, partialTicks);
     }
 
-    /** One label with a dark backing strip, so it stays readable over the preview backdrop. */
-    /** Read-outs live under the SV square, in the left band, clear of the preview. */
+    /** 底板只包住文字，避免右侧拖出一条长阴影。 */
     private void drawReadout(String key, float value, int index, int rowHeight) {
+        String text = StatCollector.translateToLocalFormatted(key, String.format("%.2f", value));
         int y = readoutY + index * rowHeight;
-        int right = Math.min(width - 8, readoutX + LABEL_WIDTH);
+        int textWidth = fontRendererObj.getStringWidth(text);
+        int right = Math.min(width - 8, readoutX + textWidth + 8);
         drawRect(readoutX - 3, y - 3, right, y + 12, 0x90000000);
-        drawString(fontRendererObj,
-                StatCollector.translateToLocalFormatted(key, String.format("%.2f", value)),
-                readoutX, y, 0xE0E0E0);
+        drawString(fontRendererObj, text, readoutX, y, 0xE0E0E0);
     }
 
     private void drawHueStrip() {
-        // A full hue wheel, dimmed outside the selected range so the range is obvious.
         for (int i = 0; i < stripWidth; i++) {
             float hue = i / (float) stripWidth;
             int colour = ColorUtil.withAlpha(ColorUtil.hsbToRgb(hue, 1.0F, 1.0F), 0xFF);
@@ -286,17 +298,11 @@ public class FlowColorScreen extends GuiScreen implements SliderHost {
         drawRect(stripX, stripY + STRIP_HEIGHT, stripX + stripWidth, stripY + STRIP_HEIGHT + 1, 0x40FFFFFF);
     }
 
-    private void drawSquare() {
-        HsvSquare.draw(squareX, squareY, squareSize, flow.hueStart);
-        HsvSquare.drawMarker(squareX, squareY, squareSize, flow.saturation, flow.brightness);
-    }
-
     private void drawPreview() {
         int y = stripY + STRIP_HEIGHT + 6;
         int barHeight = 16;
         long now = System.currentTimeMillis();
-        // 直接把预览条当成一根 1.7 格长的线，用同一套取色公式逐像素求值：
-        // 密度、色相范围、亮度、透明度、流动方向都会真实反映出来。
+        // 把预览条当成一根 1.7 格长的线，用同一套取色公式逐像素求值。
         for (int i = 0; i < previewWidth; i++) {
             double t = i / (double) Math.max(1, previewWidth - 1);
             int colour = FlowPreview.colourAt(flow, 0xFFFFFFFF, now,
@@ -305,6 +311,66 @@ public class FlowColorScreen extends GuiScreen implements SliderHost {
         }
         drawRect(previewX, y - 1, previewX + previewWidth, y, 0x60FFFFFF);
         drawRect(previewX, y + barHeight, previewX + previewWidth, y + barHeight + 1, 0x60FFFFFF);
+    }
+
+    private void drawPicker() {
+        HsvSquare.draw(pickerX, pickerY, pickerWidth, pickerHeight, flow.hueStart);
+        HsvSquare.drawMarker(pickerX, pickerY, pickerWidth, pickerHeight,
+                flow.saturation, flow.brightness);
+    }
+
+    private void drawBars() {
+        drawBar(0, "crosshairselection.flow_brightness", flow.brightness, brightnessColours());
+        drawBar(1, "crosshairselection.flow_opacity", flow.opacity, opacityColours());
+        float density01 = (flow.bandDensity - 0.05F) / (3.0F - 0.05F);
+        drawBar(2, "crosshairselection.flow_density", clamp01(density01), densityColours());
+    }
+
+    private void drawBar(int index, String labelKey, float value, int[] colours) {
+        int y = barTop(index);
+        // 标签放在条的上方，避免和条本身抢宽度。
+        drawString(fontRendererObj,
+                StatCollector.translateToLocalFormatted(labelKey, String.format("%.2f", value)),
+                barX, y - 11, 0xA0A0A0);
+        if (index == 1) {
+            // 透明度条：先铺棋盘格，透明端才看得出来。
+            ValueBar.drawChecker(barX, y, barWidth, BAR_HEIGHT);
+        }
+        ValueBar.draw(barX, y, barWidth, BAR_HEIGHT, colours);
+        ValueBar.drawMarker(barX, y, barWidth, BAR_HEIGHT, value);
+    }
+
+    private int[] brightnessColours() {
+        int[] colours = new int[barWidth];
+        for (int i = 0; i < barWidth; i++) {
+            float t = i / (float) Math.max(1, barWidth - 1);
+            colours[i] = 0xFF000000 | ColorUtil.hsbToRgb(flow.hueStart, flow.saturation, t);
+        }
+        return colours;
+    }
+
+    private int[] opacityColours() {
+        // 棋盘格由 ValueBar 画在条下方之前，这里只负责渐变颜色本身。
+        int rgb = ColorUtil.hsbToRgb(flow.hueStart, flow.saturation, flow.brightness);
+        int[] colours = new int[barWidth];
+        for (int i = 0; i < barWidth; i++) {
+            int alpha = Math.round(255.0F * i / (float) Math.max(1, barWidth - 1));
+            colours[i] = ColorUtil.withAlpha(rgb, alpha);
+        }
+        return colours;
+    }
+
+    private int[] densityColours() {
+        int rgb = 0xFF000000 | ColorUtil.hsbToRgb(flow.hueStart, flow.saturation, flow.brightness);
+        int[] colours = new int[barWidth];
+        for (int i = 0; i < barWidth; i++) {
+            float t = i / (float) Math.max(1, barWidth - 1);
+            float density = 0.05F + t * (3.0F - 0.05F);
+            // 靠右条纹越密，直观表示密度变大。
+            double stripe = Math.abs((i * density * 0.08D) % 1.0D);
+            colours[i] = stripe < 0.5D ? rgb : 0x40000000;
+        }
+        return colours;
     }
 
     @Override

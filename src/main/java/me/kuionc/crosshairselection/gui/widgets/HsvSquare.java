@@ -29,8 +29,8 @@ public final class HsvSquare {
     private HsvSquare() {
     }
 
-    /** 画出色盘；{@code size} 是屏幕上的边长，纹理会被缩放。 */
-    public static void draw(int x, int y, int size, float hue) {
+    /** 画出色盘；按给定的宽高拉伸纹理（支持长方形）。 */
+    public static void draw(int x, int y, int width, int height, float hue) {
         ensureTexture(hue);
         if (texture == null) {
             return;
@@ -42,9 +42,9 @@ public final class HsvSquare {
 
         Tessellator tessellator = TessellatorManager.get();
         tessellator.startDrawingQuads();
-        tessellator.addVertexWithUV(x, y + size, 0.0D, 0.0D, 1.0D);
-        tessellator.addVertexWithUV(x + size, y + size, 0.0D, 1.0D, 1.0D);
-        tessellator.addVertexWithUV(x + size, y, 0.0D, 1.0D, 0.0D);
+        tessellator.addVertexWithUV(x, y + height, 0.0D, 0.0D, 1.0D);
+        tessellator.addVertexWithUV(x + width, y + height, 0.0D, 1.0D, 1.0D);
+        tessellator.addVertexWithUV(x + width, y, 0.0D, 1.0D, 0.0D);
         tessellator.addVertexWithUV(x, y, 0.0D, 0.0D, 0.0D);
         tessellator.draw();
 
@@ -53,9 +53,10 @@ public final class HsvSquare {
     }
 
     /** 1px 十字 + 1px 黑描边。 */
-    public static void drawMarker(int x, int y, int size, float saturation, float brightness) {
-        int markerX = x + Math.round(clamp01(saturation) * (size - 1));
-        int markerY = y + Math.round((1.0F - clamp01(brightness)) * (size - 1));
+    public static void drawMarker(int x, int y, int width, int height,
+                                  float saturation, float brightness) {
+        int markerX = x + Math.round(clamp01(saturation) * (width - 1));
+        int markerY = y + Math.round((1.0F - clamp01(brightness)) * (height - 1));
         GL11.glDisable(GL11.GL_TEXTURE_2D);
         drawRect(markerX - 4, markerY, markerX + 5, markerY + 1, 0xFF000000);
         drawRect(markerX, markerY - 4, markerX + 1, markerY + 5, 0xFF000000);
@@ -64,13 +65,13 @@ public final class HsvSquare {
     }
 
     /** 鼠标位置 → {saturation, brightness}。 */
-    public static float[] pick(int x, int y, int size, int mouseX, int mouseY) {
-        if (size <= 0) {
+    public static float[] pick(int x, int y, int width, int height, int mouseX, int mouseY) {
+        if (width <= 0 || height <= 0) {
             return new float[]{0.0F, 0.0F};
         }
         return new float[]{
-                clamp01((mouseX - x) / (float) size),
-                1.0F - clamp01((mouseY - y) / (float) size)};
+                clamp01((mouseX - x) / (float) width),
+                1.0F - clamp01((mouseY - y) / (float) height)};
     }
 
     private static void ensureTexture(float hue) {

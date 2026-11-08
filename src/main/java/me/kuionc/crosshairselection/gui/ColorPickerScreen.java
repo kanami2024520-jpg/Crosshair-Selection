@@ -88,8 +88,8 @@ public class ColorPickerScreen extends GuiScreen implements SliderHost {
         GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
 
         float[] hsb = ColorUtil.rgbToHsb(colour);
-        HsvSquare.draw(squareX, squareY, SQUARE_SIZE, hsb[0]);
-        HsvSquare.drawMarker(squareX, squareY, SQUARE_SIZE, hsb[1], hsb[2]);
+        HsvSquare.draw(squareX, squareY, SQUARE_SIZE, SQUARE_SIZE, hsb[0]);
+        HsvSquare.drawMarker(squareX, squareY, SQUARE_SIZE, SQUARE_SIZE, hsb[1], hsb[2]);
 
         drawHueBar(hsb[0]);
         drawAlphaBar();
@@ -205,7 +205,7 @@ public class ColorPickerScreen extends GuiScreen implements SliderHost {
     }
 
     private void updateSquare(int mouseX, int mouseY) {
-        float[] pick = HsvSquare.pick(squareX, squareY, SQUARE_SIZE, mouseX, mouseY);
+        float[] pick = HsvSquare.pick(squareX, squareY, SQUARE_SIZE, SQUARE_SIZE, mouseX, mouseY);
         float[] hsb = ColorUtil.rgbToHsb(colour);
         int rgb = ColorUtil.hsbToRgb(hsb[0], pick[0], pick[1]);
         colour = ColorUtil.withAlpha(rgb, ColorUtil.alpha(colour));
