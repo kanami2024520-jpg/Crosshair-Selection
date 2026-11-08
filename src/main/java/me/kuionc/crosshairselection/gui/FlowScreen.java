@@ -25,11 +25,11 @@ public class FlowScreen extends SettingsScreen {
     private static final int HUE_START = 11;
     private static final int HUE_RANGE = 12;
     private static final int SATURATION = 13;
-    private static final int BRIGHTNESS = 14;
+
     private static final int SPEED = 15;
     private static final int DIRECTION = 16;
     private static final int MOTION = 17;
-    private static final int DENSITY = 18;
+
     private static final int PROGRESS = 26;
     private static final int SWEEP_SOFTNESS = 27;
     private static final int PULSE_STRENGTH = 30;
@@ -85,10 +85,7 @@ public class FlowScreen extends SettingsScreen {
         add(new GuiButton(MOTION, right, y + row, SettingsLayout.COLUMN_WIDTH, 18,
                 StatCollector.translateToLocalFormatted("crosshairselection.flow_motion",
                         StatCollector.translateToLocal(motionKey(flow.motion)))));
-        add(new OptionSlider(BRIGHTNESS, right, y + row * 2, SettingsLayout.COLUMN_WIDTH, 18, 0.0F, 1.0F,
-                flow.brightness, false, 2, "crosshairselection.flow_brightness", this));
-        add(new OptionSlider(DENSITY, right, y + row * 3, SettingsLayout.COLUMN_WIDTH, 18, 0.05F, 3.0F,
-                flow.bandDensity, false, 2, "crosshairselection.flow_density", this));
+        // 亮度 / 透明度 / 色带密度都在「颜色」子页面里，和色盘对齐。
 
         if (tab == TAB_SELECTION) {
             int groupY = y + row * 4;
@@ -195,8 +192,6 @@ public class FlowScreen extends SettingsScreen {
                 return "crosshairselection.flow.motion.triangle";
             case NOISE:
                 return "crosshairselection.flow.motion.noise";
-            case GLITCH:
-                return "crosshairselection.flow.motion.glitch";
             case LINEAR:
             default:
                 return "crosshairselection.flow.motion.linear";
@@ -265,12 +260,6 @@ public class FlowScreen extends SettingsScreen {
         switch (optionId) {
             case SPEED:
                 flow.speed = Math.round(value);
-                break;
-            case BRIGHTNESS:
-                flow.brightness = value;
-                break;
-            case DENSITY:
-                flow.bandDensity = value;
                 break;
             case SWEEP_SOFTNESS:
                 flow.sweepSoftness = value;

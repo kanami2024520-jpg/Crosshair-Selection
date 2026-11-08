@@ -33,6 +33,7 @@ uniform float uFlowMotion;
 uniform float uFlowDensity;
 uniform float uFlowProgress;
 uniform float uFlowSoftness;
+uniform float uFlowOpacity;
 uniform vec3 uSweepAxis;
 uniform float uSweepCentreOut;
 
@@ -43,11 +44,6 @@ uniform vec3 uFlowOrigin;
 uniform float uSweepMin;
 uniform float uSweepMax;
 uniform float uSweepRadius;
-
-// 量子闪烁（GLITCH）：相位由 Java 的 GlitchClock 积分得到，另外两个值供撕裂与扫描线使用。
-uniform float uGlitchPhase;
-uniform float uGlitchStep;
-uniform float uGlitchTime;
 
 uniform float uDebugSolid;          // 预留的调试开关（Java 端会上传，当前不改变输出）
 
@@ -93,13 +89,6 @@ float motionPhase(float x, int mode, vec2 position) {
     return fract(x);
 }
 
-float hash11(float p) {
-    p = fract(p * 0.1031);
-    p *= p + 33.33;
-    p *= p + p;
-    return fract(p);
-}
-
 vec3 hsvToRgb(vec3 c) {
     vec3 p = abs(fract(c.xxx + vec3(1.0, 2.0 / 3.0, 1.0 / 3.0)) * 6.0 - 3.0);
     return c.z * mix(vec3(1.0), clamp(p - 1.0, 0.0, 1.0), clamp(c.y, 0.0, 1.0));
@@ -113,27 +102,8 @@ float flowCoord(vec3 world) {
     return dot(world - uFlowOrigin, uFlowAxis);
 }
 
-/** GLITCH 的区块撕裂：把 Y 轴切成 8..12 条，随机把其中几条整体横向错位。 */
-float glitchShift(vec3 world) {
-    float bands = 8.0 + floor(hash11(uGlitchStep * 0.37) * 5.0);
-    float band = floor(world.y * bands);
-    if (hash11(uGlitchStep * 17.0 + band) > 0.72) {
-        return (hash11(uGlitchStep * 5.0 + band) - 0.5) * 1.6;
-    }
-    return 0.0;
-}
-
-/** 给定空间位置返回流光颜色；GLITCH 用积分相位与撕裂坐标。 */
+/** 给定空间位置返回流光颜色。 */
 vec3 flowSample(vec3 world) {
-    if (uFlowMotion > 3.5) {
-        vec3 torn = world;
-        torn.x += glitchShift(world);
-        float coord = flowCoord(torn);
-        return hsvToRgb(vec3(
-                fract(uFlowColour.x + fract(coord * uFlowDensity + uGlitchPhase) * uFlowColour.y),
-                uFlowColour.z, uFlowColour.w));
-    }
-
     float phase = motionPhase(uFlowPhase, int(uFlowMotion), world.xz * 40.0);
     float coord = flowCoord(world);
     vec3 flow = hsvToRgb(vec3(
@@ -187,18 +157,9 @@ void main() {
     vec3 rgb = uColour.rgb;
 
     if (uFlowMode > 0.5) {
-        if (uFlowMotion > 3.5) {
-            // RGB 色差：R/B 通道分别向两侧偏移 0.01..0.03。
-            float split = 0.01 + hash11(uGlitchStep * 3.0) * 0.02;
-            rgb = vec3(flowSample(world + vec3(split, 0.0, 0.0)).r,
-                       flowSample(world).g,
-                       flowSample(world - vec3(split, 0.0, 0.0)).b);
-            // 极短闪烁：高频扫描线。
-            rgb *= 0.72 + 0.28 * sin(world.y * 50.0 + uGlitchTime * 30.0);
-        } else {
-            rgb = flowSample(world);
-        }
+        rgb = flowSample(world);
     }
 
-    gl_FragColor = vec4(rgb, uColour.a * body);
+    float flowAlpha = uFlowMode > 0.5 ? uFlowOpacity : 1.0;
+    gl_FragColor = vec4(rgb, uColour.a * body * flowAlpha);
 }

@@ -108,6 +108,7 @@ public final class ShaderSupport {
         uniform(program, "uFlowDensity", Math.max(flow.bandDensity, 0.01F));
         uniform(program, "uFlowSoftness", Math.max(flow.sweepSoftness, 0.001F));
         uniform(program, "uFlowProgress", progress);
+        uniform(program, "uFlowOpacity", Math.max(0.0F, Math.min(1.0F, flow.opacity)));
 
         // Sweep axis and direction depend on the configured travel mode.
         float[] axis = sweepAxis(flow);
@@ -133,18 +134,6 @@ public final class ShaderSupport {
             uniform(program, "uSweepRadius", frame.radius);
         }
 
-        // 量子闪烁：相位由 GlitchClock 积分得到，另外两个值供撕裂与扫描线使用。
-        float glitchPhase = 0.0F;
-        float glitchStep = 0.0F;
-        float glitchTime = 0.0F;
-        if (flow.motion == FlowSettings.Motion.GLITCH) {
-            glitchPhase = GlitchClock.phase(flow, now);
-            glitchStep = GlitchClock.step(now);
-            glitchTime = (float) (now / 1000.0D);
-        }
-        uniform(program, "uGlitchPhase", glitchPhase);
-        uniform(program, "uGlitchStep", glitchStep);
-        uniform(program, "uGlitchTime", glitchTime);
     }
 
     /**

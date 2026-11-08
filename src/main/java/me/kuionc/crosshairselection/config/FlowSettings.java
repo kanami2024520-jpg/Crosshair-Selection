@@ -14,9 +14,7 @@ public final class FlowSettings {
         LINEAR,
         COSINE,
         TRIANGLE,
-        NOISE,
-        /** 量子闪烁：阶跃状态机 + 区块撕裂 + RGB 色差 + 扫描线闪烁。 */
-        GLITCH
+        NOISE
     }
 
     /** Where the flow starts and which way it travels. */
@@ -57,6 +55,8 @@ public final class FlowSettings {
     public float hueRange = 0.32F;
     public float saturation = 0.49F;
     public float brightness = 0.91F;
+    /** 整体透明度倍率，乘在基色 alpha 上；1.0 表示不改变。 */
+    public float opacity = 1.0F;
 
     // Motion
     public float speed = 500.0F;
@@ -87,6 +87,7 @@ public final class FlowSettings {
         hueRange = 0.32F;
         saturation = 0.49F;
         brightness = 0.91F;
+        opacity = 1.0F;
         speed = 500.0F;
         direction = Direction.FORWARD;
         startCorner = 0;
@@ -111,6 +112,7 @@ public final class FlowSettings {
         hueRange = other.hueRange;
         saturation = other.saturation;
         brightness = other.brightness;
+        opacity = other.opacity;
         speed = other.speed;
         direction = other.direction;
         startCorner = other.startCorner;

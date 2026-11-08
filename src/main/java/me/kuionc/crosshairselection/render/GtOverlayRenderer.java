@@ -53,6 +53,11 @@ public final class GtOverlayRenderer {
             resetSmooth();
             return false;
         }
+        // 九格和外框都关掉时不接管渲染：把黑色默认九格还给 GT。
+        if (!GtOverlayConfig.showGrid && !GtOverlayConfig.showBlockOutline) {
+            resetSmooth();
+            return false;
+        }
 
         renderedWorld = world;
         renderedX = x;
@@ -107,12 +112,14 @@ public final class GtOverlayRenderer {
         }
         java.util.List<OutlineShape> shapes = ShapeCollector.collect(world, block, x, y, z, primary, target);
 
-        // "Use selection style" makes the pipe outline follow the selection box exactly; with it
-        // off, the GT page owns the colour, width and margin.
-        int boxColour = GtOverlayConfig.useSelectionStyle
+        // "Use selection style" makes the pipe outline follow the selection box exactly, but only
+        // while the 9-grid is on: with the grid disabled the overlay must not inherit the
+        // selection colour (which can be any hue), so it falls back to the GT colour (black).
+        boolean selectionStyle = GtOverlayConfig.useSelectionStyle && GtOverlayConfig.showGrid;
+        int boxColour = selectionStyle
                 ? SelectionBoxConfig.colour : GtOverlayConfig.colour;
         double margin = Math.max(0.0D, SelectionBoxConfig.outlineMargin);
-        float boxThickness = GtOverlayConfig.useSelectionStyle
+        float boxThickness = selectionStyle
                 ? SelectionBoxRenderer.outlineThickness() : GtOverlayConfig.thickness;
 
         RenderBackend.beginWorldOutlines();
@@ -128,7 +135,7 @@ public final class GtOverlayRenderer {
         // grid no longer have to share one thickness. The selection flow animates the pipe
         // outline only when the selection style is in use; the grid never animates.
         boolean ribbons = RibbonBuffer.begin(boxColour,
-                GtOverlayConfig.useSelectionStyle ? SelectionBoxConfig.flow : null,
+                selectionStyle ? SelectionBoxConfig.flow : null,
                 drawCameraX, drawCameraY, drawCameraZ);
         if (GtOverlayConfig.showBlockOutline) {
             for (OutlineShape shape : shapes) {

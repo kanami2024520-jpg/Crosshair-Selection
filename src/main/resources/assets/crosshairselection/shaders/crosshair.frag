@@ -10,11 +10,6 @@
 //   - 所有距离都以「物理像素」为单位，GUI 缩放已在 Java 端乘好；
 //   - 反馈与蓄力的数值都是 0..1，由 CrosshairFeedback / TicCrosshairCompat 提供。
 
-// 量子闪烁。相位由 Java 的 GlitchClock 积分得到，另外两个值供撕裂与扫描线使用。
-uniform float uGlitchPhase;
-uniform float uGlitchStep;
-uniform float uGlitchTime;
-
 float hash21(vec2 p) {
     p = fract(p * vec2(123.34, 456.21));
     p += dot(p, p + 45.32);
@@ -71,32 +66,6 @@ vec3 flowColour(float phase, vec2 position, vec4 colourParams, float density) {
     return hsvToRgb(vec3(fract(t), colourParams.z, colourParams.w));
 }
 
-float hash11(float p) {
-    p = fract(p * 0.1031);
-    p *= p + 33.33;
-    p *= p + p;
-    return fract(p);
-}
-
-/** GLITCH 区块撕裂：按屏幕 Y 切条，随机把几条整体横向错位。 */
-float glitchShift(vec2 p) {
-    float bands = 8.0 + floor(hash11(uGlitchStep * 0.37) * 5.0);
-    float band = floor(p.y / 16.0 * bands);
-    if (hash11(uGlitchStep * 17.0 + band) > 0.72) {
-        return (hash11(uGlitchStep * 5.0 + band) - 0.5) * 48.0;
-    }
-    return 0.0;
-}
-
-/** GLITCH 取色：先按条带错位，再用积分相位取色带。 */
-vec3 glitchColour(vec2 p, vec4 colourParams, float density) {
-    vec2 torn = p;
-    torn.x += glitchShift(p);
-    float band = dot(torn, vec2(0.01)) * density;
-    float t = colourParams.x + fract(band + uGlitchPhase) * colourParams.y;
-    return hsvToRgb(vec3(fract(t), colourParams.z, colourParams.w));
-}
-
 // 准星的屏幕位置与屏幕尺寸，单位均为物理像素。
 uniform vec2 uCentre;
 uniform vec2 uScreen;
@@ -118,6 +87,7 @@ uniform float uFlowMotion;
 uniform float uFlowDensity;
 uniform float uFlowProgress;
 uniform float uFlowSoftness;
+uniform float uFlowOpacity;
 uniform float uGlintStrength;
 uniform float uGlintRadius;
 uniform float uGlintStar;
@@ -187,17 +157,6 @@ void main() {
     float alpha = uColour.a * body;
 
     if (uFlowMode > 0.5) {
-        vec2 rel = screen - uCentre;
-        if (uFlowMotion > 3.5) {
-            // RGB 色差 + 高频扫描线。
-            float split = 0.01 + hash11(uGlitchStep * 3.0) * 0.02;
-            rgb = vec3(glitchColour(rel + vec2(split * 16.0, 0.0), uFlowColour, uFlowDensity).r,
-                       glitchColour(rel, uFlowColour, uFlowDensity).g,
-                       glitchColour(rel - vec2(split * 16.0, 0.0), uFlowColour, uFlowDensity).b);
-            rgb *= 0.72 + 0.28 * sin(rel.y / 16.0 * 50.0 + uGlitchTime * 30.0);
-            alpha = uColour.a * body;
-            // 跳过下面的常规流光分支。
-        } else {
         float phase = motionPhase(uFlowPhase, int(uFlowMotion), screen * 0.01);
         vec3 flow = flowColour(phase, screen - uCentre, uFlowColour, uFlowDensity);
 
@@ -221,8 +180,7 @@ void main() {
         }
 
         rgb = flow;
-        alpha = uColour.a * body;
-        }
+        alpha = uColour.a * body * uFlowOpacity;
     }
 
     if (uOutline > 0.0) {
