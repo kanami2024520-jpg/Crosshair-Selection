@@ -108,6 +108,7 @@ public final class ShaderSupport {
         uniform(program, "uFlowDensity", Math.max(flow.bandDensity, 0.01F));
         uniform(program, "uFlowSoftness", Math.max(flow.sweepSoftness, 0.001F));
         uniform(program, "uFlowProgress", progress);
+        uniform(program, "uFlowOpacity", Math.max(0.0F, Math.min(1.0F, flow.opacity)));
 
         // Sweep axis and direction depend on the configured travel mode.
         float[] axis = sweepAxis(flow);

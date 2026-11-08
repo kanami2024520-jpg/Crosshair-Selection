@@ -30,6 +30,7 @@ public class FlowScreen extends SettingsScreen {
     private static final int DIRECTION = 16;
     private static final int MOTION = 17;
     private static final int DENSITY = 18;
+    private static final int OPACITY = 19;
     private static final int PROGRESS = 26;
     private static final int SWEEP_SOFTNESS = 27;
     private static final int PULSE_STRENGTH = 30;
@@ -89,6 +90,8 @@ public class FlowScreen extends SettingsScreen {
                 flow.brightness, false, 2, "crosshairselection.flow_brightness", this));
         add(new OptionSlider(DENSITY, right, y + row * 3, SettingsLayout.COLUMN_WIDTH, 18, 0.05F, 3.0F,
                 flow.bandDensity, false, 2, "crosshairselection.flow_density", this));
+        add(new OptionSlider(OPACITY, right, y + row * 4, SettingsLayout.COLUMN_WIDTH, 18, 0.0F, 1.0F,
+                flow.opacity, false, 2, "crosshairselection.flow_opacity", this));
 
         if (tab == TAB_SELECTION) {
             int groupY = y + row * 4;
@@ -269,6 +272,9 @@ public class FlowScreen extends SettingsScreen {
                 break;
             case DENSITY:
                 flow.bandDensity = value;
+                break;
+            case OPACITY:
+                flow.opacity = value;
                 break;
             case SWEEP_SOFTNESS:
                 flow.sweepSoftness = value;

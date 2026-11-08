@@ -111,6 +111,7 @@ crosshairselection.flow.group.colour=Colour
 crosshairselection.flow.group.sweep=Sweep
 crosshairselection.flow.group.glint=Glint
 crosshairselection.flow_density=Band Density: %s
+crosshairselection.flow_opacity=Opacity: %s
 crosshairselection.flow_sweep_softness=Sweep Softness: %s
 crosshairselection.confirm=Confirm
 crosshairselection.flow_colour=Colours...

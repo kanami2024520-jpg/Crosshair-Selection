@@ -31,7 +31,8 @@ public final class FlowPreview {
         if (flow == null || flow.mode == FlowSettings.Mode.OFF) {
             return baseColour;
         }
-        int alpha = ColorUtil.alpha(baseColour);
+        int alpha = Math.round(ColorUtil.alpha(baseColour)
+                * Math.max(0.0F, Math.min(1.0F, flow.opacity)));
         double phase = motionPhase(ShaderSupport.phase(flow, now), flow.motion,
                 (float) worldX, (float) worldZ);
 

@@ -1,6 +1,7 @@
 package me.kuionc.crosshairselection.gui;
 
 import me.kuionc.crosshairselection.config.FlowSettings;
+import me.kuionc.crosshairselection.gui.widgets.HsvSquare;
 import me.kuionc.crosshairselection.util.ColorUtil;
 import net.minecraft.client.gui.GuiButton;
 import net.minecraft.client.gui.GuiScreen;
@@ -20,7 +21,7 @@ public class FlowColorScreen extends GuiScreen {
     private static final int RESET = 2;
 
     private static final int STRIP_HEIGHT = 28;
-    private static final int MAX_SQUARE_SIZE = 128;
+    private static final int MAX_SQUARE_SIZE = 160;
     private static final int HANDLE_SIZE = 6;
     /** Half width of the centred preview panel plus a margin; everything stays outside this band. */
     private static final int PREVIEW_HALF_WIDTH = 80;
@@ -77,12 +78,14 @@ public class FlowColorScreen extends GuiScreen {
         // Square on the left of the centred preview, read-outs on its right.
         int panelLeft = width / 2 - PREVIEW_HALF_WIDTH;
         int panelRight = width / 2 + PREVIEW_HALF_WIDTH;
-        int availableHeight = height - (stripY + STRIP_HEIGHT + 24) - 60;
+        // 色带 → 渐变条 → 说明文字 → 色盘 → 读数，纵向排开，互不重叠。
+        int readoutBlock = 4 * 18 + 8;
+        int availableHeight = height - (stripY + STRIP_HEIGHT + 52) - readoutBlock - 48;
         squareSize = Math.min(MAX_SQUARE_SIZE,
                 Math.max(64, Math.min(availableHeight, width / 4)));
         squareX = Math.max(8, panelLeft - LABEL_GAP - squareSize);
-        squareY = stripY + STRIP_HEIGHT + 24;
-        readoutX = Math.min(width - LABEL_WIDTH - 8, panelRight + LABEL_GAP);
+        squareY = stripY + STRIP_HEIGHT + 52;
+        readoutX = squareX;
         buttonList.add(new GuiButton(RESET, width / 2 - 105, height - 26, 100, 20,
                 StatCollector.translateToLocal("crosshairselection.flow_colour.reset")));
         buttonList.add(new GuiButton(BACK, width / 2 + 5, height - 26, 100, 20,
@@ -113,16 +116,17 @@ public class FlowColorScreen extends GuiScreen {
             return;
         }
         if (mouseY >= stripY - HANDLE_SIZE && mouseY <= stripY + STRIP_HEIGHT + HANDLE_SIZE) {
+            // 整条色带都可以点：按到两个把手的距离选择拖动起点/终点，点哪跳哪。
             int startX = startHandleX();
             int endX = endHandleX();
-            if (Math.abs(mouseX - startX) <= HANDLE_SIZE + 2) {
+            if (Math.abs(mouseX - startX) <= Math.abs(mouseX - endX)) {
                 dragging = Drag.START;
-                return;
-            }
-            if (Math.abs(mouseX - endX) <= HANDLE_SIZE + 2) {
+                updateStart(mouseX);
+            } else {
                 dragging = Drag.END;
-                return;
+                updateEnd(mouseX);
             }
+            return;
         }
         if (mouseX >= squareX && mouseX <= squareX + squareSize
                 && mouseY >= squareY && mouseY <= squareY + squareSize) {
@@ -249,32 +253,12 @@ public class FlowColorScreen extends GuiScreen {
     }
 
     private void drawSquare() {
-        float hue = flow.hueStart;
-        // 16x16 色块，边界按浮点均分：以前 SQUARE_SIZE / 16 的整数除法会让方块右下角
-        // 留出一条没画颜色的空带，标记看起来就「拖到范围外」了。
-        int cells = 16;
-        for (int ix = 0; ix < cells; ix++) {
-            int x0 = squareX + ix * squareSize / cells;
-            int x1 = squareX + (ix + 1) * squareSize / cells;
-            for (int iy = 0; iy < cells; iy++) {
-                int y0 = squareY + iy * squareSize / cells;
-                int y1 = squareY + (iy + 1) * squareSize / cells;
-                float saturation = ix / (float) (cells - 1);
-                float brightness = 1.0F - iy / (float) (cells - 1);
-                drawRect(x0, y0, x1, y1, ColorUtil.hsbToRgb(hue, saturation, brightness));
-            }
-        }
-        int markerX = squareX + Math.round(flow.saturation * (squareSize - 1));
-        int markerY = squareY + Math.round((1.0F - flow.brightness) * (squareSize - 1));
-        // 1px 十字 + 1px 黑色描边：位置比原来的 7x7 方块精确得多。
-        drawRect(markerX - 4, markerY, markerX + 5, markerY + 1, 0xFF000000);
-        drawRect(markerX, markerY - 4, markerX + 1, markerY + 5, 0xFF000000);
-        drawRect(markerX - 3, markerY, markerX + 4, markerY + 1, 0xFFFFFFFF);
-        drawRect(markerX, markerY - 3, markerX + 1, markerY + 4, 0xFFFFFFFF);
+        HsvSquare.draw(squareX, squareY, squareSize, flow.hueStart);
+        HsvSquare.drawMarker(squareX, squareY, squareSize, flow.saturation, flow.brightness);
     }
 
     private void drawPreview() {
-        int y = stripY + STRIP_HEIGHT + 18;
+        int y = stripY + STRIP_HEIGHT + 6;
         int height = 16;
         for (int i = 0; i < previewWidth; i++) {
             float t = i / (float) previewWidth;

@@ -87,6 +87,7 @@ uniform float uFlowMotion;
 uniform float uFlowDensity;
 uniform float uFlowProgress;
 uniform float uFlowSoftness;
+uniform float uFlowOpacity;
 uniform float uGlintStrength;
 uniform float uGlintRadius;
 uniform float uGlintStar;
@@ -179,7 +180,7 @@ void main() {
         }
 
         rgb = flow;
-        alpha = uColour.a * body;
+        alpha = uColour.a * body * uFlowOpacity;
     }
 
     if (uOutline > 0.0) {

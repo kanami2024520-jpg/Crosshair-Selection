@@ -15,6 +15,7 @@ uniform float uFlowMotion;
 uniform float uFlowDensity;
 uniform float uFlowProgress;
 uniform float uFlowSoftness;
+uniform float uFlowOpacity;
 uniform vec3 uSweepAxis;
 uniform float uSweepCentreOut;
 
@@ -102,5 +103,6 @@ void main() {
     if (uColour.a <= 0.004) {
         discard;
     }
-    gl_FragColor = vec4(rgb, uColour.a);
+    float flowAlpha = uFlowMode > 0.5 ? uFlowOpacity : 1.0;
+    gl_FragColor = vec4(rgb, uColour.a * flowAlpha);
 }
