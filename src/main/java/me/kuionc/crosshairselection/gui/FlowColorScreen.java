@@ -19,8 +19,8 @@ public class FlowColorScreen extends GuiScreen {
     private static final int BACK = 1;
     private static final int RESET = 2;
 
-    private static final int STRIP_HEIGHT = 22;
-    private static final int SQUARE_SIZE = 92;
+    private static final int STRIP_HEIGHT = 28;
+    private static final int MAX_SQUARE_SIZE = 128;
     private static final int HANDLE_SIZE = 6;
     /** Half width of the centred preview panel plus a margin; everything stays outside this band. */
     private static final int PREVIEW_HALF_WIDTH = 80;
@@ -37,9 +37,9 @@ public class FlowColorScreen extends GuiScreen {
     private int stripWidth;
     private int squareX;
     private int squareY;
-    private int labelX;
+    private int squareSize;
     private int readoutX;
-    /** Left edge of the read-out column and the width available for it. */
+    /** Left edge of the gradient bar under the strip and its width. */
     private int previewX;
     private int previewWidth;
 
@@ -65,22 +65,24 @@ public class FlowColorScreen extends GuiScreen {
         // The page is split into three bands: a narrow left column for the SV square, the centred
         // preview panel, and a right column for read-outs. The hue strip spans the left two bands
         // so it reads as one continuous scale without ever running under the preview.
+        int margin = 16;
+        // The hue strip now spans the whole page instead of sharing the right band, and the
+        // gradient bar repeats it directly underneath.
+        stripX = margin;
+        stripWidth = Math.max(80, width - 2 * margin);
+        stripY = 40;
+        previewX = stripX;
+        previewWidth = stripWidth;
+
+        // Square on the left of the centred preview, read-outs on its right.
         int panelLeft = width / 2 - PREVIEW_HALF_WIDTH;
         int panelRight = width / 2 + PREVIEW_HALF_WIDTH;
-        int leftEdge = Math.max(8, panelLeft - LABEL_GAP);
-        int rightEdge = width - 8;
-        // The hue strip and the gradient bar share the right band so the narrow left column stays
-        // free for the SV square; neither ever runs under the preview panel.
-        stripX = panelRight + LABEL_GAP;
-        stripWidth = Math.max(80, rightEdge - stripX);
-        stripY = 40;
-        // The square sits in the empty band to the left of the preview, centred there.
-        squareX = Math.max(8, panelLeft - LABEL_GAP - SQUARE_SIZE);
-        squareY = stripY + STRIP_HEIGHT + 50;
-        labelX = stripX;
-        previewX = stripX;
-        readoutX = squareX;
-        previewWidth = stripWidth;
+        int availableHeight = height - (stripY + STRIP_HEIGHT + 24) - 60;
+        squareSize = Math.min(MAX_SQUARE_SIZE,
+                Math.max(64, Math.min(availableHeight, width / 4)));
+        squareX = Math.max(8, panelLeft - LABEL_GAP - squareSize);
+        squareY = stripY + STRIP_HEIGHT + 24;
+        readoutX = Math.min(width - LABEL_WIDTH - 8, panelRight + LABEL_GAP);
         buttonList.add(new GuiButton(RESET, width / 2 - 105, height - 26, 100, 20,
                 StatCollector.translateToLocal("crosshairselection.flow_colour.reset")));
         buttonList.add(new GuiButton(BACK, width / 2 + 5, height - 26, 100, 20,
@@ -122,8 +124,8 @@ public class FlowColorScreen extends GuiScreen {
                 return;
             }
         }
-        if (mouseX >= squareX && mouseX <= squareX + SQUARE_SIZE
-                && mouseY >= squareY && mouseY <= squareY + SQUARE_SIZE) {
+        if (mouseX >= squareX && mouseX <= squareX + squareSize
+                && mouseY >= squareY && mouseY <= squareY + squareSize) {
             dragging = Drag.SQUARE;
             updateSquare(mouseX, mouseY);
         }
@@ -181,8 +183,8 @@ public class FlowColorScreen extends GuiScreen {
     }
 
     private void updateSquare(int mouseX, int mouseY) {
-        flow.saturation = clamp01((mouseX - squareX) / (float) SQUARE_SIZE);
-        flow.brightness = 1.0F - clamp01((mouseY - squareY) / (float) SQUARE_SIZE);
+        flow.saturation = clamp01((mouseX - squareX) / (float) squareSize);
+        flow.brightness = 1.0F - clamp01((mouseY - squareY) / (float) squareSize);
     }
 
     private static float clamp01(float value) {
@@ -223,8 +225,8 @@ public class FlowColorScreen extends GuiScreen {
     /** One label with a dark backing strip, so it stays readable over the preview backdrop. */
     /** Read-outs live under the SV square, in the left band, clear of the preview. */
     private void drawReadout(String key, float value, int index, int rowHeight) {
-        int y = squareY + SQUARE_SIZE + 6 + index * rowHeight;
-        int right = Math.min(width / 2 - PREVIEW_HALF_WIDTH - LABEL_GAP, readoutX + LABEL_WIDTH);
+        int y = squareY + squareSize + 6 + index * rowHeight;
+        int right = Math.min(width - 8, readoutX + LABEL_WIDTH);
         drawRect(readoutX - 3, y - 3, right, y + 12, 0x90000000);
         drawString(fontRendererObj,
                 StatCollector.translateToLocalFormatted(key, String.format("%.2f", value)),
@@ -248,22 +250,27 @@ public class FlowColorScreen extends GuiScreen {
 
     private void drawSquare() {
         float hue = flow.hueStart;
-        // 16x16 cells are enough to read the gradient and cheap to draw every frame.
+        // 16x16 色块，边界按浮点均分：以前 SQUARE_SIZE / 16 的整数除法会让方块右下角
+        // 留出一条没画颜色的空带，标记看起来就「拖到范围外」了。
         int cells = 16;
-        int cell = SQUARE_SIZE / cells;
         for (int ix = 0; ix < cells; ix++) {
+            int x0 = squareX + ix * squareSize / cells;
+            int x1 = squareX + (ix + 1) * squareSize / cells;
             for (int iy = 0; iy < cells; iy++) {
+                int y0 = squareY + iy * squareSize / cells;
+                int y1 = squareY + (iy + 1) * squareSize / cells;
                 float saturation = ix / (float) (cells - 1);
                 float brightness = 1.0F - iy / (float) (cells - 1);
-                drawRect(squareX + ix * cell, squareY + iy * cell,
-                        squareX + (ix + 1) * cell, squareY + (iy + 1) * cell,
-                        ColorUtil.hsbToRgb(hue, saturation, brightness));
+                drawRect(x0, y0, x1, y1, ColorUtil.hsbToRgb(hue, saturation, brightness));
             }
         }
-        int markerX = squareX + Math.round(flow.saturation * (SQUARE_SIZE - 1));
-        int markerY = squareY + Math.round((1.0F - flow.brightness) * (SQUARE_SIZE - 1));
-        drawRect(markerX - 3, markerY - 3, markerX + 4, markerY + 4, 0xFF000000);
-        drawRect(markerX - 2, markerY - 2, markerX + 3, markerY + 3, 0xFFFFFFFF);
+        int markerX = squareX + Math.round(flow.saturation * (squareSize - 1));
+        int markerY = squareY + Math.round((1.0F - flow.brightness) * (squareSize - 1));
+        // 1px 十字 + 1px 黑色描边：位置比原来的 7x7 方块精确得多。
+        drawRect(markerX - 4, markerY, markerX + 5, markerY + 1, 0xFF000000);
+        drawRect(markerX, markerY - 4, markerX + 1, markerY + 5, 0xFF000000);
+        drawRect(markerX - 3, markerY, markerX + 4, markerY + 1, 0xFFFFFFFF);
+        drawRect(markerX, markerY - 3, markerX + 1, markerY + 4, 0xFFFFFFFF);
     }
 
     private void drawPreview() {

@@ -26,9 +26,13 @@ public final class EnderIoShapeProvider implements ShapeProvider {
 
     private static final Class<?> BUNDLE_INTERFACE = classOrNull("crazypants.enderio.conduit.IConduitBundle");
     private static final Method GET_COMPONENTS = methodOrNull(BUNDLE_INTERFACE, "getCollidableComponents");
+    private static final Method GET_CONNECTORS = methodOrNull(BUNDLE_INTERFACE, "getConnectors");
+    /** 端盖/盘面比其他组件稍厚一点，描边才看得清（单位：格）。 */
+    private static final double CONNECTOR_GROW = 0.008D;
     private static Field boundField;
     private static Field dataField;
     private static Field conduitTypeField;
+    private static Field dirField;
 
     @Override
     public boolean collect(World world, int x, int y, int z, Block block,
@@ -52,6 +56,7 @@ public final class EnderIoShapeProvider implements ShapeProvider {
                     boundField = component.getClass().getField("bound");
                     dataField = component.getClass().getField("data");
                     conduitTypeField = component.getClass().getField("conduitType");
+                    dirField = component.getClass().getField("dir");
                 }
 
                 Object data = dataField.get(component);
@@ -74,21 +79,35 @@ public final class EnderIoShapeProvider implements ShapeProvider {
                     continue;
                 }
                 physical.add(new Component((Class<?>) conduitTypeField.get(component),
-                        AxisAlignedBB.getBoundingBox(minX, minY, minZ, maxX, maxY, maxZ)));
+                        AxisAlignedBB.getBoundingBox(minX, minY, minZ, maxX, maxY, maxZ),
+                        (net.minecraftforge.common.util.ForgeDirection) dirField.get(component),
+                        component));
             }
             if (physical.isEmpty()) {
                 return false;
             }
 
-            // 不再单独描「命中的那一个组件」：EnderIO 的端部盖子和中心核都是很小的盒子，
-            // 只描它们会得到线中间/两端的一小截，毫无意义。命中任何组件都按 conduitType
-            // 分组，输出该类型的全部组件，得到完整的一整条线。
+            // 命中任何组件都按 conduitType 分组，输出该类型的全部组件，得到完整的一整条线。
+            // 但端盖/盘面是个例外：每个方向都有一个，全部画出来会「点一个面的盘面，
+            // 其他面的盘面也一起亮」。所以连接面组件只保留被命中的那一个。
             Component hit = hitComponent(physical, target, x, y, z);
             Class<?> hitType = hit != null ? hit.type : null;
+            List<?> connectors = connectors(tile);
             Map<Class<?>, List<AxisAlignedBB>> groups = new LinkedHashMap<Class<?>, List<AxisAlignedBB>>();
             for (Component component : physical) {
                 if (hitType != null && component.type != hitType) {
                     continue;
+                }
+                if (hitType == null && hit != null && component.dir != hit.dir) {
+                    continue;
+                }
+                boolean connector = isConnector(component.source, connectors);
+                if (connector && (hit == null || !sameSource(component.source, hit.source))) {
+                    continue;
+                }
+                AxisAlignedBB box = component.box;
+                if (connector) {
+                    box = box.expand(CONNECTOR_GROW, CONNECTOR_GROW, CONNECTOR_GROW);
                 }
                 List<AxisAlignedBB> boxes = groups.get(component.type);
                 if (boxes == null) {
@@ -96,8 +115,8 @@ public final class EnderIoShapeProvider implements ShapeProvider {
                     groups.put(component.type, boxes);
                 }
                 boxes.add(AxisAlignedBB.getBoundingBox(
-                        component.box.minX + x, component.box.minY + y, component.box.minZ + z,
-                        component.box.maxX + x, component.box.maxY + y, component.box.maxZ + z));
+                        box.minX + x, box.minY + y, box.minZ + z,
+                        box.maxX + x, box.maxY + y, box.maxZ + z));
             }
             if (groups.isEmpty()) {
                 return false;
@@ -158,6 +177,32 @@ public final class EnderIoShapeProvider implements ShapeProvider {
         return Math.sqrt(dx * dx + dy * dy + dz * dz);
     }
 
+    /** 当前线束的连接面/端盖组件；拿不到时返回空列表。 */
+    private static List<?> connectors(TileEntity tile) {
+        if (GET_CONNECTORS == null) {
+            return java.util.Collections.emptyList();
+        }
+        try {
+            Object value = GET_CONNECTORS.invoke(tile);
+            return value instanceof List ? (List<?>) value : java.util.Collections.emptyList();
+        } catch (Throwable ignored) {
+            return java.util.Collections.emptyList();
+        }
+    }
+
+    private static boolean isConnector(Object source, List<?> connectors) {
+        for (Object connector : connectors) {
+            if (sameSource(source, connector)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean sameSource(Object a, Object b) {
+        return a == b || (a != null && a.equals(b));
+    }
+
     private static boolean isNonPhysical(Object data) {
         if (data == null) {
             return false;
@@ -171,10 +216,15 @@ public final class EnderIoShapeProvider implements ShapeProvider {
     private static final class Component {
         private final Class<?> type;
         private final AxisAlignedBB box;
+        private final net.minecraftforge.common.util.ForgeDirection dir;
+        private final Object source;
 
-        private Component(Class<?> type, AxisAlignedBB box) {
+        private Component(Class<?> type, AxisAlignedBB box,
+                          net.minecraftforge.common.util.ForgeDirection dir, Object source) {
             this.type = type;
             this.box = box;
+            this.dir = dir;
+            this.source = source;
         }
     }
 
