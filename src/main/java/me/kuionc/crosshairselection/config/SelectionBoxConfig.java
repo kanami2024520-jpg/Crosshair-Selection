@@ -70,13 +70,17 @@ public class SelectionBoxConfig {
 
     @Config.Comment("Selection transition duration in seconds (0.05 - 0.5).")
     @Config.RangeFloat(min = 0.05F, max = 0.5F)
-    public static float transitionDuration = 0.15F;
+    public static float transitionDuration = 0.05F;
 
     @Config.Comment("Draw the inner fill inside the selection box.")
     public static boolean showFill = false;
 
     @Config.Comment("Log which part the AE cable bus selection picked. Only for troubleshooting.")
     public static boolean debugPartSelection = false;
+
+    @Config.Comment("Log selection target changes (raw hit, lock decision, shapes, animation). "
+            + "Only for troubleshooting.")
+    public static boolean debugTargetSelection = false;
 
     @Config.Comment("Animate the inner fill.")
     public static boolean blink = true;
@@ -100,9 +104,10 @@ public class SelectionBoxConfig {
         linkBlocks = true;
         showHidden = true;
         smoothTransition = true;
-        transitionDuration = 0.15F;
+        transitionDuration = 0.05F;
         showFill = false;
         blink = true;
         debugPartSelection = false;
+        debugTargetSelection = false;
     }
 }

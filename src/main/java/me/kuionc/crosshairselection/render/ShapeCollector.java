@@ -37,7 +37,40 @@ public final class ShapeCollector {
             new FmpShapeProvider()
     };
 
+    private static String lastShapeSignature;
+
     private ShapeCollector() {
+    }
+
+    /** 形状签名变化时写一行，用于区分“目标没变但形状在变”。 */
+    private static void logShapes(String provider, List<OutlineShape> shapes) {
+        if (!SelectionDebugLog.enabled()) {
+            return;
+        }
+        StringBuilder signature = new StringBuilder(provider).append('|').append(shapes.size());
+        for (OutlineShape shape : shapes) {
+            if (shape.getKind() == OutlineShape.Kind.BOX) {
+                signature.append('|').append(box(shape.getBox()));
+            } else if (shape.getKind() == OutlineShape.Kind.UNION) {
+                signature.append("|union").append(shape.getBoxes().size());
+            } else {
+                signature.append("|cyl");
+            }
+        }
+        String value = signature.toString();
+        if (value.equals(lastShapeSignature)) {
+            return;
+        }
+        lastShapeSignature = value;
+        SelectionDebugLog.log("SHAPE", value);
+    }
+
+    private static String box(net.minecraft.util.AxisAlignedBB box) {
+        if (box == null) {
+            return "null";
+        }
+        return String.format(java.util.Locale.ROOT, "(%.3f,%.3f,%.3f)-(%.3f,%.3f,%.3f)",
+                box.minX, box.minY, box.minZ, box.maxX, box.maxY, box.maxZ);
     }
 
     public static List<OutlineShape> collect(World world, Block block, int x, int y, int z,
@@ -46,6 +79,7 @@ public final class ShapeCollector {
         for (ShapeProvider provider : PROVIDERS) {
             try {
                 if (provider.collect(world, x, y, z, block, target, shapes) && !shapes.isEmpty()) {
+                    logShapes(provider.getClass().getSimpleName(), shapes);
                     return shapes;
                 }
             } catch (Throwable throwable) {
@@ -55,6 +89,7 @@ public final class ShapeCollector {
         }
 
         shapes.add(OutlineShape.box(primary, true));
+        logShapes("primary", shapes);
         if (SelectionBoxConfig.linkBlocks) {
             for (AxisAlignedBB linked : LinkedBoxes.collect(world, block, x, y, z, primary)) {
                 shapes.add(OutlineShape.box(linked, true));

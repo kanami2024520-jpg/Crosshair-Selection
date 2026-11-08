@@ -2,6 +2,7 @@ package me.kuionc.crosshairselection.compat;
 
 import me.kuionc.crosshairselection.config.GtOverlayConfig;
 import me.kuionc.crosshairselection.render.GtOverlayRenderer;
+import me.kuionc.crosshairselection.render.TargetLock;
 import net.minecraft.block.Block;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraftforge.client.event.DrawBlockHighlightEvent;
@@ -23,12 +24,17 @@ public final class GtOverlayCompat {
                 || event.target.typeOfHit != net.minecraft.util.MovingObjectPosition.MovingObjectType.BLOCK) {
             return false;
         }
-        Block block = event.player.worldObj.getBlock(event.target.blockX, event.target.blockY, event.target.blockZ);
-        if (!isGtTarget(event.player.worldObj, event.target.blockX, event.target.blockY,
-                event.target.blockZ, block)) {
+        net.minecraft.util.MovingObjectPosition target =
+                TargetLock.stable(event.player.worldObj, event.target);
+        if (target == null) {
             return false;
         }
-        if (!GtOverlayRenderer.render(event.player, event.target, event.partialTicks)) {
+        Block block = event.player.worldObj.getBlock(target.blockX, target.blockY, target.blockZ);
+        if (!isGtTarget(event.player.worldObj, target.blockX, target.blockY,
+                target.blockZ, block)) {
+            return false;
+        }
+        if (!GtOverlayRenderer.render(event.player, target, event.partialTicks)) {
             return false;
         }
         event.setCanceled(true);
