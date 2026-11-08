@@ -132,6 +132,27 @@ public final class PreviewPanel {
                     p[edge[1]][0], p[edge[1]][1], toWorld(corners[edge[1]]),
                     flow, base, now, 1.5F);
         }
+
+        // 角到角：把选中的起点角/终点角标出来，并画一条连线表示行进方向。
+        if (flow != null && flow.direction == FlowSettings.Direction.CORNER_TO_CORNER) {
+            int start = clampCorner(flow.startCorner);
+            int end = clampCorner(flow.endCorner);
+            drawSegment(p[start][0], p[start][1], p[end][0], p[end][1], 0x80FFFFFF, 1.0F);
+            drawCornerMarker(p[start][0], p[start][1], 0xFFFFFFFF);
+            drawCornerMarker(p[end][0], p[end][1], 0xFFFFC24A);
+        }
+    }
+
+    private static int clampCorner(int corner) {
+        return Math.max(0, Math.min(7, corner));
+    }
+
+    /** 角标记：黑底 + 彩色方点，起点白、终点琥珀。 */
+    private static void drawCornerMarker(float x, float y, int colour) {
+        int cx = Math.round(x);
+        int cy = Math.round(y);
+        RenderHelper.drawRect(cx - 4, cy - 4, cx + 5, cy + 5, 0xFF000000);
+        RenderHelper.drawRect(cx - 3, cy - 3, cx + 4, cy + 4, colour);
     }
 
     /**

@@ -2,6 +2,9 @@ package me.kuionc.crosshairselection.gui;
 
 import me.kuionc.crosshairselection.config.FlowSettings;
 import me.kuionc.crosshairselection.gui.widgets.HsvSquare;
+import me.kuionc.crosshairselection.gui.widgets.OptionSlider;
+import me.kuionc.crosshairselection.gui.widgets.SliderHost;
+import me.kuionc.crosshairselection.render.FlowPreview;
 import me.kuionc.crosshairselection.util.ColorUtil;
 import net.minecraft.client.gui.GuiButton;
 import net.minecraft.client.gui.GuiScreen;
@@ -15,10 +18,13 @@ import org.lwjgl.opengl.GL11;
  * brightness square picks the tint. The preview bar shows the resulting gradient so the numeric
  * sliders are no longer the only way to see what the colours look like.
  */
-public class FlowColorScreen extends GuiScreen {
+public class FlowColorScreen extends GuiScreen implements SliderHost {
 
     private static final int BACK = 1;
     private static final int RESET = 2;
+    private static final int BRIGHTNESS = 10;
+    private static final int OPACITY = 11;
+    private static final int DENSITY = 12;
 
     private static final int STRIP_HEIGHT = 28;
     private static final int MAX_SQUARE_SIZE = 160;
@@ -40,6 +46,7 @@ public class FlowColorScreen extends GuiScreen {
     private int squareY;
     private int squareSize;
     private int readoutX;
+    private int readoutY;
     /** Left edge of the gradient bar under the strip and its width. */
     private int previewX;
     private int previewWidth;
@@ -75,21 +82,45 @@ public class FlowColorScreen extends GuiScreen {
         previewX = stripX;
         previewWidth = stripWidth;
 
-        // Square on the left of the centred preview, read-outs on its right.
-        int panelLeft = width / 2 - PREVIEW_HALF_WIDTH;
-        int panelRight = width / 2 + PREVIEW_HALF_WIDTH;
-        // 色带 → 渐变条 → 说明文字 → 色盘 → 读数，纵向排开，互不重叠。
+        // 整列贴左：色盘、滑杆、读数都以色相条左端为基准。
+        int sliderBlock = 3 * 22 + 6;
         int readoutBlock = 4 * 18 + 8;
-        int availableHeight = height - (stripY + STRIP_HEIGHT + 52) - readoutBlock - 48;
+        squareY = stripY + STRIP_HEIGHT + 52;
+        int availableHeight = height - squareY - sliderBlock - readoutBlock - 44;
         squareSize = Math.min(MAX_SQUARE_SIZE,
                 Math.max(64, Math.min(availableHeight, width / 4)));
-        squareX = Math.max(8, panelLeft - LABEL_GAP - squareSize);
-        squareY = stripY + STRIP_HEIGHT + 52;
+        squareX = stripX;
         readoutX = squareX;
+
+        int sliderY = squareY + squareSize + 8;
+        buttonList.add(new OptionSlider(BRIGHTNESS, squareX, sliderY, squareSize, 18, 0.0F, 1.0F,
+                flow.brightness, false, 2, "crosshairselection.flow_brightness", this));
+        buttonList.add(new OptionSlider(OPACITY, squareX, sliderY + 22, squareSize, 18, 0.0F, 1.0F,
+                flow.opacity, false, 2, "crosshairselection.flow_opacity", this));
+        buttonList.add(new OptionSlider(DENSITY, squareX, sliderY + 44, squareSize, 18, 0.05F, 3.0F,
+                flow.bandDensity, false, 2, "crosshairselection.flow_density", this));
+        readoutY = sliderY + sliderBlock + 4;
         buttonList.add(new GuiButton(RESET, width / 2 - 105, height - 26, 100, 20,
                 StatCollector.translateToLocal("crosshairselection.flow_colour.reset")));
         buttonList.add(new GuiButton(BACK, width / 2 + 5, height - 26, 100, 20,
                 StatCollector.translateToLocal("crosshairselection.back")));
+    }
+
+    @Override
+    public void onSliderChanged(int optionId, float value) {
+        switch (optionId) {
+            case BRIGHTNESS:
+                flow.brightness = value;
+                break;
+            case OPACITY:
+                flow.opacity = value;
+                break;
+            case DENSITY:
+                flow.bandDensity = value;
+                break;
+            default:
+                break;
+        }
     }
 
     @Override
@@ -175,8 +206,11 @@ public class FlowColorScreen extends GuiScreen {
 
     private void updateStart(int mouseX) {
         float value = clamp01((mouseX - stripX) / (float) stripWidth);
-        // 终点保持不动：起点只能落在 0 .. (1 - range) 之间。
-        flow.hueStart = Math.min(value, Math.max(0.0F, 1.0F - flow.hueRange));
+        // 终点保持不动，由起点反推范围；以前用 1 - range 当上限，
+        // 终点不在 1 时会算错，左侧把手也就拖不动了。
+        float end = flow.hueStart + flow.hueRange;
+        flow.hueStart = Math.max(0.0F, Math.min(value, end - 0.01F));
+        flow.hueRange = Math.max(0.01F, end - flow.hueStart);
     }
 
     private void updateEnd(int mouseX) {
@@ -229,7 +263,7 @@ public class FlowColorScreen extends GuiScreen {
     /** One label with a dark backing strip, so it stays readable over the preview backdrop. */
     /** Read-outs live under the SV square, in the left band, clear of the preview. */
     private void drawReadout(String key, float value, int index, int rowHeight) {
-        int y = squareY + squareSize + 6 + index * rowHeight;
+        int y = readoutY + index * rowHeight;
         int right = Math.min(width - 8, readoutX + LABEL_WIDTH);
         drawRect(readoutX - 3, y - 3, right, y + 12, 0x90000000);
         drawString(fontRendererObj,
@@ -259,20 +293,18 @@ public class FlowColorScreen extends GuiScreen {
 
     private void drawPreview() {
         int y = stripY + STRIP_HEIGHT + 6;
-        int height = 16;
+        int barHeight = 16;
+        long now = System.currentTimeMillis();
+        // 直接把预览条当成一根 1.7 格长的线，用同一套取色公式逐像素求值：
+        // 密度、色相范围、亮度、透明度、流动方向都会真实反映出来。
         for (int i = 0; i < previewWidth; i++) {
-            float t = i / (float) previewWidth;
-            float hue = flow.hueStart + t * flow.hueRange;
-            drawRect(previewX + i, y, previewX + i + 1, y + height,
-                    ColorUtil.hsbToRgb(hue, flow.saturation, flow.brightness));
+            double t = i / (double) Math.max(1, previewWidth - 1);
+            int colour = FlowPreview.colourAt(flow, 0xFFFFFFFF, now,
+                    t * 1.7D, 0.0D, 0.0D, t);
+            drawRect(previewX + i, y, previewX + i + 1, y + barHeight, colour);
         }
         drawRect(previewX, y - 1, previewX + previewWidth, y, 0x60FFFFFF);
-        drawRect(previewX, y + height, previewX + previewWidth, y + height + 1, 0x60FFFFFF);
-
-        // A moving highlight shows how the gradient will animate.
-        float phase = (System.currentTimeMillis() % 4000L) / 4000.0F;
-        int markerX = previewX + Math.round(phase * previewWidth);
-        drawRect(markerX - 1, y - 2, markerX + 1, y + height + 2, 0xFFFFFFFF);
+        drawRect(previewX, y + barHeight, previewX + previewWidth, y + barHeight + 1, 0x60FFFFFF);
     }
 
     @Override
