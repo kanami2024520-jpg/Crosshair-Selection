@@ -32,35 +32,17 @@ public final class FlowPreview {
             return baseColour;
         }
         int alpha = ColorUtil.alpha(baseColour);
-        double phase = flow.motion == FlowSettings.Motion.GLITCH
-                ? GlitchClock.phase(flow, now)
-                : motionPhase(ShaderSupport.phase(flow, now), flow.motion,
+        double phase = motionPhase(ShaderSupport.phase(flow, now), flow.motion,
                 (float) worldX, (float) worldZ);
 
-        int rgb;
-        if (flow.motion == FlowSettings.Motion.GLITCH) {
-            long step = now / GlitchClock.STEP_MILLIS;
-            double split = 0.01D + hash(step * 3L) * 0.02D;
-            double tornX = worldX + glitchShift(step, worldY);
-            int red = hue(flow, phase, tornX + split, worldY, worldZ);
-            int green = hue(flow, phase, tornX, worldY, worldZ);
-            int blue = hue(flow, phase, tornX - split, worldY, worldZ);
-            double flicker = 0.72D + 0.28D * Math.sin((worldY + 0.5D) * 50.0D
-                    + now * 0.001D * 30.0D);
-            rgb = pack(
-                    scale(red >>> 16 & 255, flicker),
-                    scale(green >>> 8 & 255, flicker),
-                    scale(blue & 255, flicker));
-        } else {
-            double coord = coordinate(flow, worldX, worldY, worldZ);
-            rgb = hueAt(flow, phase, coord);
-            if (flow.mode == FlowSettings.Mode.SWEEP) {
-                double along = along(flow, coord);
-                double d = along - flow.progress;
-                double softness = Math.max(flow.sweepSoftness, 0.001D);
-                double mask = d <= 0.0D ? 1.0D : 1.0D - smoothstep(0.0D, softness, d);
-                rgb = mix(baseColour & 0xFFFFFF, rgb, mask);
-            }
+        double coord = coordinate(flow, worldX, worldY, worldZ);
+        int rgb = hueAt(flow, phase, coord);
+        if (flow.mode == FlowSettings.Mode.SWEEP) {
+            double along = along(flow, coord);
+            double d = along - flow.progress;
+            double softness = Math.max(flow.sweepSoftness, 0.001D);
+            double mask = d <= 0.0D ? 1.0D : 1.0D - smoothstep(0.0D, softness, d);
+            rgb = mix(baseColour & 0xFFFFFF, rgb, mask);
         }
         return (alpha << 24) | (rgb & 0xFFFFFF);
     }
@@ -96,16 +78,7 @@ public final class FlowPreview {
         return (coord + HALF_DIAGONAL) / (2.0D * HALF_DIAGONAL);
     }
 
-    private static double glitchShift(long step, double y) {
-        double bands = 8.0D + Math.floor(hash(step * 37L) * 5.0D);
-        double band = Math.floor((y + 0.5D) * bands);
-        if (hash(step * 17L + (long) band) > 0.72D) {
-            return (hash(step * 5L + (long) band) - 0.5D) * 1.6D;
-        }
-        return 0.0D;
-    }
-
-    private static float motionPhase(float x, FlowSettings.Motion motion, float px, float pz) {
+        private static float motionPhase(float x, FlowSettings.Motion motion, float px, float pz) {
         switch (motion) {
             case COSINE:
                 // 单向流动，速度平滑变化：单调递增的余弦缓动。
@@ -122,7 +95,6 @@ public final class FlowPreview {
                         + valueNoise(px * 40.0F * 0.10F + t * 1.6F + 17.3F,
                         pz * 40.0F * 0.10F + t * 1.1F) * 0.35D);
             case LINEAR:
-            case GLITCH:
             default:
                 return (float) (x - Math.floor(x));
         }
@@ -161,15 +133,7 @@ public final class FlowPreview {
         return value - Math.floor(value);
     }
 
-    private static float hash(long value) {
-        long x = value;
-        x = (x ^ (x >>> 33)) * 0xff51afd7ed558ccdL;
-        x = (x ^ (x >>> 33)) * 0xc4ceb9fe1a85ec53L;
-        x = x ^ (x >>> 33);
-        return (float) ((x >>> 40) / (double) (1L << 24));
-    }
-
-    private static double valueNoise(float x, float z) {
+        private static double valueNoise(float x, float z) {
         int ix = (int) Math.floor(x);
         int iz = (int) Math.floor(z);
         float fx = x - ix;
@@ -186,5 +150,13 @@ public final class FlowPreview {
     private static float hashCell(int x, int z) {
         long h = (long) x * 374761393L + (long) z * 668265263L;
         return hash(h);
+    }
+
+    private static float hash(long value) {
+        long x = value;
+        x = (x ^ (x >>> 33)) * 0xff51afd7ed558ccdL;
+        x = (x ^ (x >>> 33)) * 0xc4ceb9fe1a85ec53L;
+        x = x ^ (x >>> 33);
+        return (float) ((x >>> 40) / (double) (1L << 24));
     }
 }

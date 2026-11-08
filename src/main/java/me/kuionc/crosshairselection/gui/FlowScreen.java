@@ -195,8 +195,6 @@ public class FlowScreen extends SettingsScreen {
                 return "crosshairselection.flow.motion.triangle";
             case NOISE:
                 return "crosshairselection.flow.motion.noise";
-            case GLITCH:
-                return "crosshairselection.flow.motion.glitch";
             case LINEAR:
             default:
                 return "crosshairselection.flow.motion.linear";

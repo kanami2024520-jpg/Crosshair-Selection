@@ -61,6 +61,7 @@ public class FlowColorScreen extends GuiScreen {
     @Override
     public void initGui() {
         buttonList.clear();
+        normaliseHueRange();
         // The page is split into three bands: a narrow left column for the SV square, the centred
         // preview panel, and a right column for read-outs. The hue strip spans the left two bands
         // so it reads as one continuous scale without ever running under the preview.
@@ -154,16 +155,29 @@ public class FlowColorScreen extends GuiScreen {
         }
     }
 
+    /**
+     * 把色相区间钳在 0..1 之内。
+     *
+     * <p>色条只画 0..1 这一周，如果 hueStart + hueRange 超过 1，终点把手会跑到色条外面，
+     * 超出部分也不会被画出来。拖动和旧配置都在这里归一化。
+     */
+    private void normaliseHueRange() {
+        flow.hueStart = flow.hueStart - (float) Math.floor(flow.hueStart);
+        float maxRange = Math.max(0.01F, 1.0F - flow.hueStart);
+        flow.hueRange = Math.max(0.01F, Math.min(flow.hueRange, maxRange));
+    }
+
     private void updateStart(int mouseX) {
         float value = clamp01((mouseX - stripX) / (float) stripWidth);
-        float end = flow.hueStart + flow.hueRange;
-        flow.hueStart = Math.min(value, end);
-        flow.hueRange = Math.max(end - flow.hueStart, 0.01F);
+        // 终点保持不动：起点只能落在 0 .. (1 - range) 之间。
+        flow.hueStart = Math.min(value, Math.max(0.0F, 1.0F - flow.hueRange));
     }
 
     private void updateEnd(int mouseX) {
         float value = clamp01((mouseX - stripX) / (float) stripWidth);
-        flow.hueRange = Math.max(value - flow.hueStart, 0.01F);
+        // 终点必须留在色条内，否则超出的色段画不出来。
+        float maxRange = Math.max(0.01F, 1.0F - flow.hueStart);
+        flow.hueRange = Math.max(0.01F, Math.min(value - flow.hueStart, maxRange));
     }
 
     private void updateSquare(int mouseX, int mouseY) {

@@ -133,18 +133,6 @@ public final class ShaderSupport {
             uniform(program, "uSweepRadius", frame.radius);
         }
 
-        // 量子闪烁：相位由 GlitchClock 积分得到，另外两个值供撕裂与扫描线使用。
-        float glitchPhase = 0.0F;
-        float glitchStep = 0.0F;
-        float glitchTime = 0.0F;
-        if (flow.motion == FlowSettings.Motion.GLITCH) {
-            glitchPhase = GlitchClock.phase(flow, now);
-            glitchStep = GlitchClock.step(now);
-            glitchTime = (float) (now / 1000.0D);
-        }
-        uniform(program, "uGlitchPhase", glitchPhase);
-        uniform(program, "uGlitchStep", glitchStep);
-        uniform(program, "uGlitchTime", glitchTime);
     }
 
     /**

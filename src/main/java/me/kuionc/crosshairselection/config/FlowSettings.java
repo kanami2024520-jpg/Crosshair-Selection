@@ -14,9 +14,7 @@ public final class FlowSettings {
         LINEAR,
         COSINE,
         TRIANGLE,
-        NOISE,
-        /** 量子闪烁：阶跃状态机 + 区块撕裂 + RGB 色差 + 扫描线闪烁。 */
-        GLITCH
+        NOISE
     }
 
     /** Where the flow starts and which way it travels. */
