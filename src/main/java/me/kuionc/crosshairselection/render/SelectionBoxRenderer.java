@@ -32,12 +32,17 @@ public final class SelectionBoxRenderer {
     }
 
     public static boolean render(EntityPlayer player, MovingObjectPosition hitResult, float partialTicks) {
-        if (!SelectionBoxConfig.enabled || player == null || hitResult == null
-                || hitResult.typeOfHit != MovingObjectPosition.MovingObjectType.BLOCK) {
+        if (!SelectionBoxConfig.enabled || player == null) {
+            resetSmooth();
+            return false;
+        }
+        if (hitResult == null || hitResult.typeOfHit != MovingObjectPosition.MovingObjectType.BLOCK) {
+            TargetLock.reset();
             resetSmooth();
             return false;
         }
         World world = player.worldObj;
+        hitResult = TargetLock.stable(world, hitResult);
         int x = hitResult.blockX;
         int y = hitResult.blockY;
         int z = hitResult.blockZ;
@@ -315,6 +320,7 @@ public final class SelectionBoxRenderer {
     }
 
     private static void resetSmooth() {
+        TargetLock.reset();
         lastWorld = null;
         hasSelection = false;
         transitionStart = 0L;
