@@ -23,15 +23,21 @@ import net.minecraft.world.World;
  */
 public final class TargetLock {
 
-    /** 新目标需要连续命中的帧数（按渲染帧计，不是按调用次数）。 */
-    private static final int CONFIRM_FRAMES = 3;
+    /** 普通情况下新目标需要稳定这么久才切换（约 3 帧）。 */
+    private static final long NORMAL_CONFIRM_MILLIS = 50L;
+    /** 检测到“来回横跳”后，需要稳定这么久才允许切换。 */
+    private static final long FLAP_CONFIRM_MILLIS = 300L;
+    /** 判定“来回横跳”的时间窗口：窗口内切换过至少两次。 */
+    private static final long FLAP_WINDOW_MILLIS = 400L;
+    /** 最近几次真正切换的时间戳。 */
+    private static final long[] RECENT_SWITCHES = new long[4];
     /** 判定命中点是否落在共享面上的误差（格）。 */
     private static final double PLANE_EPSILON = 0.01D;
 
     private static World lockedWorld;
     private static MovingObjectPosition current;
     private static MovingObjectPosition candidate;
-    private static int candidateFrames;
+    private static long candidateSince;
     /** 同一帧里 GT 九格会调用多次，这里保证确认计数每帧只推进一次。 */
     private static long lastCallMillis;
     private static MovingObjectPosition lastInput;
@@ -55,68 +61,83 @@ public final class TargetLock {
             return lastOutput;
         }
         long now = System.currentTimeMillis();
-        boolean newFrame = now != lastCallMillis;
         lastCallMillis = now;
 
-        MovingObjectPosition result = resolve(hit, newFrame);
+        MovingObjectPosition result = resolve(hit, now);
         lastInput = hit;
         lastOutput = result;
         return result;
     }
 
-    private static MovingObjectPosition resolve(MovingObjectPosition hit, boolean newFrame) {
+    private static MovingObjectPosition resolve(MovingObjectPosition hit, long now) {
+        long required = isFlapping(now) ? FLAP_CONFIRM_MILLIS : NORMAL_CONFIRM_MILLIS;
         if (current == null) {
             current = hit;
             candidate = null;
-            candidateFrames = 0;
+            candidateSince = 0L;
             return current;
         }
         if (sameBlock(hit, current)) {
-            // 同一方块内，如果命中面在贴边处反复跳，也要求新面连续确认。
+            // 同一方块内，如果命中面在贴边处反复跳，也要求新面稳定一段时间。
             // 覆盖板选择用的正是 sideHit，这一层能挡住“同一块管道上两个面来回切”。
             if (hit.sideHit != current.sideHit) {
                 if (candidate == null || !sameBlock(candidate, hit)
                         || candidate.sideHit != hit.sideHit) {
                     candidate = hit;
-                    candidateFrames = 1;
-                } else if (newFrame) {
-                    candidateFrames++;
+                    candidateSince = now;
                 }
-                if (candidateFrames < CONFIRM_FRAMES) {
+                if (now - candidateSince < required) {
                     return current;
                 }
+                recordSwitch(now);
             }
             current = hit;
             candidate = null;
-            candidateFrames = 0;
+            candidateSince = 0L;
             return current;
         }
         if (ambiguityAtSharedFace(current, hit)) {
             // 射线正好穿过相邻方块共享的面：平局，保持当前方块。
             candidate = null;
-            candidateFrames = 0;
+            candidateSince = 0L;
             return current;
         }
         if (candidate == null || !sameBlock(hit, candidate)) {
             candidate = hit;
-            candidateFrames = 1;
-        } else if (newFrame) {
-            candidateFrames++;
+            candidateSince = now;
         }
-        if (candidateFrames >= CONFIRM_FRAMES) {
+        if (now - candidateSince >= required) {
+            recordSwitch(now);
             current = hit;
             candidate = null;
-            candidateFrames = 0;
+            candidateSince = 0L;
         }
         return current;
+    }
+
+    /** 最近 400ms 内切换过至少两次 → 认为在交界处来回横跳。 */
+    private static boolean isFlapping(long now) {
+        int switches = 0;
+        for (long stamp : RECENT_SWITCHES) {
+            if (stamp > 0L && now - stamp <= FLAP_WINDOW_MILLIS) {
+                switches++;
+            }
+        }
+        return switches >= 2;
+    }
+
+    private static void recordSwitch(long now) {
+        System.arraycopy(RECENT_SWITCHES, 1, RECENT_SWITCHES, 0, RECENT_SWITCHES.length - 1);
+        RECENT_SWITCHES[RECENT_SWITCHES.length - 1] = now;
     }
 
     public static void reset() {
         current = null;
         candidate = null;
-        candidateFrames = 0;
+        candidateSince = 0L;
         lastInput = null;
         lastOutput = null;
+        java.util.Arrays.fill(RECENT_SWITCHES, 0L);
     }
 
     /**
