@@ -15,9 +15,19 @@ import java.util.List;
 import me.kuionc.crosshairselection.util.McRef;
 
 /**
- * Corrects Minecraft's block target for thin GT pipes, cables and cover plates. The vanilla
- * ray trace often reports the full-block bounds of an adjacent pipe, which makes selection and
- * wrench clicks land on the wrong block.
+ * Refines the target for thin GT pipes, cables and cover plates.
+ *
+ * <p><b>只在原方块内部修正形状，绝不改变方块坐标。</b>
+ *
+ * <p>以前这里会在射线终点周围扫描 5x5x5 的方块，并允许把目标替换成“更远”的 GT 方块。
+ * 结果是：指向 AE 接口 / 空气时，射线后面的 GT 总线会被选中，选框画在后面、点击也作用在后面。
+ * 现在规则收紧为：
+ *
+ * <ol>
+ *   <li>原命中必须是方块且是 GT 方块，否则直接返回 null（保留 AE、EnderIO 等原目标）；</li>
+ *   <li>只在原命中的这个方块内，用覆盖板/管道的实际形状做求交；</li>
+ *   <li>目标方块坐标永远不变，因此不可能“穿透”到后面的方块。</li>
+ * </ol>
  */
 public final class GtTargetResolver {
 
@@ -29,23 +39,19 @@ public final class GtTargetResolver {
         if (player == null || player.worldObj == null) {
             return null;
         }
-        World world = player.worldObj;
-        boolean vanillaGt = vanilla != null
-                && vanilla.typeOfHit == MovingObjectPosition.MovingObjectType.BLOCK
-                && GtOverlayCompat.isGtTarget(world, vanilla.blockX, vanilla.blockY, vanilla.blockZ,
-                world.getBlock(vanilla.blockX, vanilla.blockY, vanilla.blockZ));
-        double vanillaDistance = vanilla != null && vanilla.hitVec != null
-                ? eyeDistance(player, vanilla.hitVec) : Double.MAX_VALUE;
-        if (vanilla != null) {
-            if (vanilla.typeOfHit == MovingObjectPosition.MovingObjectType.ENTITY) {
-                return null;
-            }
-            // Never replace a valid non-GT block target (for example an EnderIO conduit face)
-            // with a GT machine behind it.
-            if (vanilla.typeOfHit == MovingObjectPosition.MovingObjectType.BLOCK && !vanillaGt) {
-                return null;
-            }
+        // 只修正“已经命中了一个 GT 方块”的情况；空气、实体、普通方块一律不替换。
+        if (vanilla == null || vanilla.typeOfHit != MovingObjectPosition.MovingObjectType.BLOCK) {
+            return null;
         }
+        World world = player.worldObj;
+        int x = vanilla.blockX;
+        int y = vanilla.blockY;
+        int z = vanilla.blockZ;
+        Block block = world.getBlock(x, y, z);
+        if (!GtOverlayCompat.isGtTarget(world, x, y, z, block)) {
+            return null;
+        }
+
         Minecraft mc = McRef.get();
         Vec3 eye = Vec3.createVectorHelper(player.posX,
                 player.posY + player.getEyeHeight(), player.posZ);
@@ -54,78 +60,46 @@ public final class GtTargetResolver {
                 ? 5.0D : mc.playerController.getBlockReachDistance();
         Vec3 end = eye.addVector(look.xCoord * reach, look.yCoord * reach, look.zCoord * reach);
 
-        int baseX = floor(end.xCoord);
-        int baseY = floor(end.yCoord);
-        int baseZ = floor(end.zCoord);
-
         MovingObjectPosition best = null;
         double bestDistance = Double.MAX_VALUE;
-        int radius = 2;
-        for (int x = baseX - radius; x <= baseX + radius; x++) {
-            for (int y = baseY - radius; y <= baseY + radius; y++) {
-                for (int z = baseZ - radius; z <= baseZ + radius; z++) {
-                    Block block = world.getBlock(x, y, z);
-                    if (block == null || !GtOverlayCompat.isGtTarget(world, x, y, z, block)) {
-                        continue;
-                    }
-                    for (int side = 0; side < 6; side++) {
-                        AxisAlignedBB cover = GtCoverShapeProvider.getCoverBox(world, x, y, z, side);
-                        if (cover != null) {
-                            Candidate candidate = intersect(eye, end, cover, x, y, z, side);
-                            if (candidate != null && candidate.distance < bestDistance) {
-                                bestDistance = candidate.distance;
-                                best = candidate.toMop();
-                            }
-                        }
-                    }
 
-                    AxisAlignedBB primary = SelectionBoxRenderer.getSelectedBox(world, block, x, y, z);
-                    if (primary != null) {
-                        MovingObjectPosition synthetic = new MovingObjectPosition(x, y, z, -1,
-                                Vec3.createVectorHelper(x + 0.5D, y + 0.5D, z + 0.5D));
-                        List<OutlineShape> shapes = ShapeCollector.collect(
-                                world, block, x, y, z, primary, synthetic);
-                        for (OutlineShape shape : shapes) {
-                            if (shape.getKind() == OutlineShape.Kind.BOX) {
-                                Candidate candidate = intersect(eye, end, shape.getBox(), x, y, z, -1);
-                                if (candidate != null && candidate.distance < bestDistance) {
-                                    bestDistance = candidate.distance;
-                                    best = candidate.toMop();
-                                }
-                            } else if (shape.getKind() == OutlineShape.Kind.UNION) {
-                                for (AxisAlignedBB box : shape.getBoxes()) {
-                                    Candidate candidate = intersect(eye, end, box, x, y, z, -1);
-                                    if (candidate != null && candidate.distance < bestDistance) {
-                                        bestDistance = candidate.distance;
-                                        best = candidate.toMop();
-                                    }
-                                }
-                            }
+        // 覆盖板优先：它们比方块本体的碰撞盒更贴近实际瞄准位置。
+        for (int side = 0; side < 6; side++) {
+            AxisAlignedBB cover = GtCoverShapeProvider.getCoverBox(world, x, y, z, side);
+            if (cover == null) {
+                continue;
+            }
+            Candidate candidate = intersect(eye, end, cover, x, y, z, side);
+            if (candidate != null && candidate.distance < bestDistance) {
+                bestDistance = candidate.distance;
+                best = candidate.toMop();
+            }
+        }
+
+        AxisAlignedBB primary = SelectionBoxRenderer.getSelectedBox(world, block, x, y, z);
+        if (primary != null) {
+            List<OutlineShape> shapes = ShapeCollector.collect(world, block, x, y, z, primary, vanilla);
+            for (OutlineShape shape : shapes) {
+                if (shape.getKind() == OutlineShape.Kind.BOX) {
+                    Candidate candidate = intersect(eye, end, shape.getBox(), x, y, z, -1);
+                    if (candidate != null && candidate.distance < bestDistance) {
+                        bestDistance = candidate.distance;
+                        best = candidate.toMop();
+                    }
+                } else if (shape.getKind() == OutlineShape.Kind.UNION) {
+                    for (AxisAlignedBB box : shape.getBoxes()) {
+                        Candidate candidate = intersect(eye, end, box, x, y, z, -1);
+                        if (candidate != null && candidate.distance < bestDistance) {
+                            bestDistance = candidate.distance;
+                            best = candidate.toMop();
                         }
                     }
                 }
             }
         }
 
-        if (best == null) {
-            return null;
-        }
-        if (!vanillaGt && vanillaDistance + 0.05D < bestDistance) {
-            return null;
-        }
-        // A vanilla GT target may be the full-block bounds of an adjacent pipe; allow a
-        // small correction, but do not jump to a much farther GT block.
-        if (vanillaGt && vanillaDistance + 0.75D < bestDistance) {
-            return null;
-        }
+        // 坐标始终是原方块；没有求交结果时保留原命中。
         return best;
-    }
-
-    private static double eyeDistance(EntityPlayer player, Vec3 hit) {
-        double dx = player.posX - hit.xCoord;
-        double dy = player.posY + player.getEyeHeight() - hit.yCoord;
-        double dz = player.posZ - hit.zCoord;
-        return Math.sqrt(dx * dx + dy * dy + dz * dz);
     }
 
     private static Candidate intersect(Vec3 eye, Vec3 end, AxisAlignedBB box,
@@ -155,11 +129,6 @@ public final class GtTargetResolver {
             }
         }
         return sides[best];
-    }
-
-    private static int floor(double value) {
-        int result = (int) value;
-        return value < result ? result - 1 : result;
     }
 
     private static final class Candidate {

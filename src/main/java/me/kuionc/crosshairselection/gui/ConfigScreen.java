@@ -38,6 +38,7 @@ public class ConfigScreen extends SettingsScreen {
     private static final int SELECTION_TEXTURE_SIZE = 15;
     private static final int SELECTION_ANTI_ALIAS = 40;
     private static final int SELECTION_FILL_SETTINGS = 53;
+    private static final int SELECTION_TARGET_STABILITY = 60;
     private static final int CROSSHAIR_VISIBILITY_SETTINGS = 54;
     private static final int CROSSHAIR_EXTRA_SETTINGS = 55;
     private static final int SELECTION_BREAK_PROGRESS = 42;
@@ -173,6 +174,8 @@ public class ConfigScreen extends SettingsScreen {
         add(right.place(toggle(SELECTION_HIDDEN, 0, 0, "crosshairselection.see_through",
                 SelectionBoxConfig.showHidden), colW), selectionOn);
         right.group();
+        add(right.place(toggle(SELECTION_TARGET_STABILITY, 0, 0, "crosshairselection.target_stability",
+                SelectionBoxConfig.targetStability), colW), selectionOn);
         add(right.place(toggle(SELECTION_SMOOTH, 0, 0, "crosshairselection.smooth_transition",
                 SelectionBoxConfig.smoothTransition), colW), selectionOn);
         add(right.place(new OptionSlider(SELECTION_TRANSITION, 0, 0, colW, 18, 0.05F, 0.5F,
@@ -541,6 +544,11 @@ public class ConfigScreen extends SettingsScreen {
                 CrosshairConfig.ticKeepCustomCrosshair = !CrosshairConfig.ticKeepCustomCrosshair;
                 button.displayString = StatCollector.translateToLocalFormatted(
                         "crosshairselection.tic_short", onOff(CrosshairConfig.ticKeepCustomCrosshair));
+                break;
+            case SELECTION_TARGET_STABILITY:
+                SelectionBoxConfig.targetStability = !SelectionBoxConfig.targetStability;
+                button.displayString = StatCollector.translateToLocalFormatted(
+                        "crosshairselection.target_stability", onOff(SelectionBoxConfig.targetStability));
                 break;
             case SELECTION_SMOOTH:
                 SelectionBoxConfig.smoothTransition = !SelectionBoxConfig.smoothTransition;

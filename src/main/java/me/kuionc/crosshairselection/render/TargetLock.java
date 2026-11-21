@@ -50,6 +50,11 @@ public final class TargetLock {
 
     /** 返回本帧应该显示的目标；可能仍是之前那个方块。 */
     public static MovingObjectPosition stable(World world, MovingObjectPosition hit) {
+        if (!me.kuionc.crosshairselection.config.SelectionBoxConfig.targetStability) {
+            // 关闭防抖动：直接使用原始命中，等同原版即时切换。
+            reset();
+            return hit;
+        }
         if (lockedWorld != world) {
             reset();
             lockedWorld = world;

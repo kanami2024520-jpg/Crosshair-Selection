@@ -82,6 +82,10 @@ public class SelectionBoxConfig {
             + "Only for troubleshooting.")
     public static boolean debugTargetSelection = false;
 
+    @Config.Comment("Keep the selection target stable at block/part boundaries. "
+            + "Turn off for instant, vanilla-style switching.")
+    public static boolean targetStability = true;
+
     @Config.Comment("Animate the inner fill.")
     public static boolean blink = true;
 
@@ -109,5 +113,6 @@ public class SelectionBoxConfig {
         blink = true;
         debugPartSelection = false;
         debugTargetSelection = false;
+        targetStability = true;
     }
 }

@@ -49,6 +49,7 @@ crosshairselection.rainbow.global=整体
 crosshairselection.rainbow.flow=流光
 
 crosshairselection.smooth_transition=平滑选中框：%s
+crosshairselection.target_stability=目标稳定：%s
 crosshairselection.transition_duration=过渡时长：%s 秒
 
 crosshairselection.tic_short=兼容匠魂：%s
