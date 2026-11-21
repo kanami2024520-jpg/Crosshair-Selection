@@ -3,8 +3,6 @@ package me.kuionc.crosshairselection.compat;
 import me.kuionc.crosshairselection.render.OutlineShape;
 import me.kuionc.crosshairselection.render.ShapeProvider;
 import net.minecraft.block.Block;
-import net.minecraft.client.Minecraft;
-import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.AxisAlignedBB;
 import net.minecraft.util.MovingObjectPosition;
@@ -14,17 +12,28 @@ import net.minecraftforge.common.util.ForgeDirection;
 
 import java.lang.reflect.Method;
 import java.util.List;
-import me.kuionc.crosshairselection.util.McRef;
 import static me.kuionc.crosshairselection.compat.Reflect.*;
 
 /**
- * GT machines and pipes can carry a cover plate on a face. The block shape is still the pipe
- * or machine, so when the crosshair ray hits a cover, the selection outline should follow that
- * cover plate instead of the underlying block.
+ * GT machines and pipes can carry a cover plate on a face.
+ *
+ * <p>选择规则保持简单、可预测：
+ * <ol>
+ *   <li>命中面 {@code sideHit} 上正好有覆盖板时，直接描它；</li>
+ *   <li>否则在六面里找离命中点最近、且距离在 {@link #NEAR} 以内的覆盖板
+ *       （例如射线打在管道本体上、但贴着某块覆盖板）。</li>
+ * </ol>
+ *
+ * <p>以前这里用「玩家眼睛 → 命中点」的延长线去和六块覆盖板做体积/平面求交，
+ * 贴边时两个面的距离几乎相等，会逐帧在两面之间跳，表现就是选框快速左右晃。
+ * 现在只依赖命中面与命中点距离，既短又稳定；贴边抖动由 {@code TargetLock}
+ * 对 {@code sideHit} 的两帧确认兜底。
  */
 public final class GtCoverShapeProvider implements ShapeProvider {
 
     private static final double THICKNESS = 2.0D / 16.0D;
+    /** 命中点到覆盖板的最大距离；再远就认为没有瞄准覆盖板。 */
+    private static final double NEAR = 0.06D;
 
     private static final Class<?> COVERABLE = classOrNull(
             "gregtech.api.interfaces.tileentity.ICoverable");
@@ -34,8 +43,7 @@ public final class GtCoverShapeProvider implements ShapeProvider {
     @Override
     public boolean collect(World world, int x, int y, int z, Block block,
                            MovingObjectPosition target, List<OutlineShape> out) {
-        if (COVERABLE == null || HAS_COVER == null || target == null || block == null
-                || target.sideHit < 0) {
+        if (COVERABLE == null || HAS_COVER == null || target == null || block == null) {
             return false;
         }
         TileEntity tile = world.getTileEntity(x, y, z);
@@ -43,140 +51,35 @@ public final class GtCoverShapeProvider implements ShapeProvider {
             return false;
         }
         try {
-            EntityPlayer player = McRef.get().thePlayer;
-            Vec3 eye = player == null ? null : Vec3.createVectorHelper(
-                    player.posX, player.posY + player.getEyeHeight(), player.posZ);
-            Vec3 hit = target.hitVec;
-
-            int coverSide = eye == null || hit == null ? -1
-                    : selectCoverSide(tile, eye, hit, x, y, z);
-            AxisAlignedBB bestBox = coverSide >= 0 ? coverBox(x, y, z, coverSide) : null;
-            if (bestBox == null && hasCover(tile, target.sideHit)) {
-                bestBox = coverBox(x, y, z, target.sideHit);
+            int side = target.sideHit;
+            if (side >= 0 && side < 6 && hasCover(tile, side)) {
+                out.add(OutlineShape.box(coverBox(x, y, z, side), false));
+                return true;
             }
-            if (bestBox == null) {
+            Vec3 hit = target.hitVec;
+            if (hit == null) {
                 return false;
             }
-            out.add(OutlineShape.box(bestBox, false));
+            int bestSide = -1;
+            double bestDistance = NEAR;
+            for (int candidate = 0; candidate < 6; candidate++) {
+                if (!hasCover(tile, candidate)) {
+                    continue;
+                }
+                double distance = distanceToBox(coverBox(x, y, z, candidate), hit);
+                if (distance < bestDistance) {
+                    bestDistance = distance;
+                    bestSide = candidate;
+                }
+            }
+            if (bestSide < 0) {
+                return false;
+            }
+            out.add(OutlineShape.box(coverBox(x, y, z, bestSide), false));
             return true;
         } catch (Throwable ignored) {
             return false;
         }
-    }
-
-    private static int selectCoverSide(TileEntity tile, Vec3 eye, Vec3 hit,
-                                       int x, int y, int z) {
-        double dx = hit.xCoord - eye.xCoord;
-        double dy = hit.yCoord - eye.yCoord;
-        double dz = hit.zCoord - eye.zCoord;
-        double length = Math.sqrt(dx * dx + dy * dy + dz * dz);
-        if (length < 1.0E-6D) {
-            return -1;
-        }
-        Vec3 end = Vec3.createVectorHelper(
-                hit.xCoord + dx / length,
-                hit.yCoord + dy / length,
-                hit.zCoord + dz / length);
-
-        int volumeSide = -1;
-        double bestDistance = Double.MAX_VALUE;
-        for (int side = 0; side < 6; side++) {
-            if (!hasCover(tile, side)) {
-                continue;
-            }
-            AxisAlignedBB detect = coverDetectBox(x, y, z, side);
-            MovingObjectPosition intercept = detect.calculateIntercept(eye, end);
-            if (intercept != null && intercept.hitVec != null) {
-                double distance = intercept.hitVec.distanceTo(eye);
-                if (distance < bestDistance) {
-                    bestDistance = distance;
-                    volumeSide = side;
-                }
-            }
-        }
-        if (volumeSide >= 0) {
-            return volumeSide;
-        }
-
-        int bestSide = -1;
-        double bestT = Double.MAX_VALUE;
-        for (int side = 0; side < 6; side++) {
-            if (!hasCover(tile, side)) {
-                continue;
-            }
-            double denominator;
-            double t;
-            double ix;
-            double iy;
-            double iz;
-            switch (side) {
-                case 0:
-                    denominator = -dy;
-                    if (denominator >= -1.0E-6D || Math.abs(dy) < 1.0E-6D) {
-                        continue;
-                    }
-                    t = (y - eye.yCoord) / dy;
-                    break;
-                case 1:
-                    denominator = dy;
-                    if (denominator >= -1.0E-6D || Math.abs(dy) < 1.0E-6D) {
-                        continue;
-                    }
-                    t = (y + 1.0D - eye.yCoord) / dy;
-                    break;
-                case 2:
-                    denominator = -dz;
-                    if (denominator >= -1.0E-6D || Math.abs(dz) < 1.0E-6D) {
-                        continue;
-                    }
-                    t = (z - eye.zCoord) / dz;
-                    break;
-                case 3:
-                    denominator = dz;
-                    if (denominator >= -1.0E-6D || Math.abs(dz) < 1.0E-6D) {
-                        continue;
-                    }
-                    t = (z + 1.0D - eye.zCoord) / dz;
-                    break;
-                case 4:
-                    denominator = -dx;
-                    if (denominator >= -1.0E-6D || Math.abs(dx) < 1.0E-6D) {
-                        continue;
-                    }
-                    t = (x - eye.xCoord) / dx;
-                    break;
-                default:
-                    denominator = dx;
-                    if (denominator >= -1.0E-6D || Math.abs(dx) < 1.0E-6D) {
-                        continue;
-                    }
-                    t = (x + 1.0D - eye.xCoord) / dx;
-                    break;
-            }
-            if (t <= 1.0E-6D || t >= bestT) {
-                continue;
-            }
-            ix = eye.xCoord + dx * t;
-            iy = eye.yCoord + dy * t;
-            iz = eye.zCoord + dz * t;
-            boolean inside;
-            if (side <= 1) {
-                inside = inside(ix, x, x + 1.0D) && inside(iz, z, z + 1.0D);
-            } else if (side <= 3) {
-                inside = inside(ix, x, x + 1.0D) && inside(iy, y, y + 1.0D);
-            } else {
-                inside = inside(iz, z, z + 1.0D) && inside(iy, y, y + 1.0D);
-            }
-            if (inside) {
-                bestT = t;
-                bestSide = side;
-            }
-        }
-        return bestSide;
-    }
-
-    private static boolean inside(double value, double min, double max) {
-        return value >= min - 1.0E-6D && value <= max + 1.0E-6D;
     }
 
     public static boolean hasCover(World world, int x, int y, int z, int side) {
@@ -198,6 +101,13 @@ public final class GtCoverShapeProvider implements ShapeProvider {
         } catch (Throwable ignored) {
             return false;
         }
+    }
+
+    private static double distanceToBox(AxisAlignedBB box, Vec3 point) {
+        double dx = Math.max(0.0D, Math.max(box.minX - point.xCoord, point.xCoord - box.maxX));
+        double dy = Math.max(0.0D, Math.max(box.minY - point.yCoord, point.yCoord - box.maxY));
+        double dz = Math.max(0.0D, Math.max(box.minZ - point.zCoord, point.zCoord - box.maxZ));
+        return Math.sqrt(dx * dx + dy * dy + dz * dz);
     }
 
     private static AxisAlignedBB coverBox(int x, int y, int z, int side) {
@@ -230,37 +140,4 @@ public final class GtCoverShapeProvider implements ShapeProvider {
         }
         return AxisAlignedBB.getBoundingBox(minX, minY, minZ, maxX, maxY, maxZ);
     }
-
-    private static AxisAlignedBB coverDetectBox(int x, int y, int z, int side) {
-        double pad = THICKNESS + 0.02D;
-        double minX = x;
-        double minY = y;
-        double minZ = z;
-        double maxX = x + 1.0D;
-        double maxY = y + 1.0D;
-        double maxZ = z + 1.0D;
-        switch (side) {
-            case 0:
-                maxY = y + pad;
-                break;
-            case 1:
-                minY = y + 1.0D - pad;
-                break;
-            case 2:
-                maxZ = z + pad;
-                break;
-            case 3:
-                minZ = z + 1.0D - pad;
-                break;
-            case 4:
-                maxX = x + pad;
-                break;
-            case 5:
-            default:
-                minX = x + 1.0D - pad;
-                break;
-        }
-        return AxisAlignedBB.getBoundingBox(minX, minY, minZ, maxX, maxY, maxZ);
-    }
-
 }

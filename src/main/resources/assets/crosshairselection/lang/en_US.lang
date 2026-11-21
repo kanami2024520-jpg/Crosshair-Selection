@@ -49,6 +49,7 @@ crosshairselection.rainbow.global=GLOBAL
 crosshairselection.rainbow.flow=FLOW
 
 crosshairselection.smooth_transition=Smooth Selection: %s
+crosshairselection.target_stability=Target stability: %s
 crosshairselection.transition_duration=Transition: %s s
 
 crosshairselection.tic_short=TiC Compat: %s
