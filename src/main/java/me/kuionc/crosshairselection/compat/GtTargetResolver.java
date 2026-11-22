@@ -1,5 +1,6 @@
 package me.kuionc.crosshairselection.compat;
 
+import me.kuionc.crosshairselection.config.GtOverlayConfig;
 import me.kuionc.crosshairselection.render.OutlineShape;
 import me.kuionc.crosshairselection.render.SelectionBoxRenderer;
 import me.kuionc.crosshairselection.render.ShapeCollector;
@@ -39,6 +40,10 @@ public final class GtTargetResolver {
         if (player == null || player.worldObj == null) {
             return null;
         }
+        // 关闭 GT 覆盖层时不做任何目标修正，完全回到原版判定。
+        if (!GtOverlayConfig.enabled) {
+            return null;
+        }
         // 只修正“已经命中了一个 GT 方块”的情况；空气、实体、普通方块一律不替换。
         if (vanilla == null || vanilla.typeOfHit != MovingObjectPosition.MovingObjectType.BLOCK) {
             return null;
@@ -69,7 +74,7 @@ public final class GtTargetResolver {
             if (cover == null) {
                 continue;
             }
-            Candidate candidate = intersect(eye, end, cover, x, y, z, side);
+            Candidate candidate = intersect(eye, end, cover, x, y, z, side, vanilla.sideHit);
             if (candidate != null && candidate.distance < bestDistance) {
                 bestDistance = candidate.distance;
                 best = candidate.toMop();
@@ -81,14 +86,14 @@ public final class GtTargetResolver {
             List<OutlineShape> shapes = ShapeCollector.collect(world, block, x, y, z, primary, vanilla);
             for (OutlineShape shape : shapes) {
                 if (shape.getKind() == OutlineShape.Kind.BOX) {
-                    Candidate candidate = intersect(eye, end, shape.getBox(), x, y, z, -1);
+                    Candidate candidate = intersect(eye, end, shape.getBox(), x, y, z, -1, vanilla.sideHit);
                     if (candidate != null && candidate.distance < bestDistance) {
                         bestDistance = candidate.distance;
                         best = candidate.toMop();
                     }
                 } else if (shape.getKind() == OutlineShape.Kind.UNION) {
                     for (AxisAlignedBB box : shape.getBoxes()) {
-                        Candidate candidate = intersect(eye, end, box, x, y, z, -1);
+                        Candidate candidate = intersect(eye, end, box, x, y, z, -1, vanilla.sideHit);
                         if (candidate != null && candidate.distance < bestDistance) {
                             bestDistance = candidate.distance;
                             best = candidate.toMop();
@@ -103,12 +108,21 @@ public final class GtTargetResolver {
     }
 
     private static Candidate intersect(Vec3 eye, Vec3 end, AxisAlignedBB box,
-                                       int x, int y, int z, int coverSide) {
+                                       int x, int y, int z, int coverSide, int vanillaSide) {
         MovingObjectPosition hit = box.calculateIntercept(eye, end);
         if (hit == null || hit.hitVec == null) {
             return null;
         }
-        int side = coverSide >= 0 ? coverSide : sideForHit(box, hit.hitVec);
+        // 覆盖板用它自己的面；其它形状沿用原版射线的面。
+        // 以前用“命中点到哪个面最近”重新猜面，贴边一像素时会把侧面误判成顶面。
+        int side;
+        if (coverSide >= 0) {
+            side = coverSide;
+        } else if (vanillaSide >= 0 && vanillaSide < 6) {
+            side = vanillaSide;
+        } else {
+            side = sideForHit(box, hit.hitVec);
+        }
         return new Candidate(x, y, z, side, hit.hitVec, eye.distanceTo(hit.hitVec));
     }
 

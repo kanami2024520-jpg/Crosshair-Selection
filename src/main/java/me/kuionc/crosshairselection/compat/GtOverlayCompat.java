@@ -2,7 +2,6 @@ package me.kuionc.crosshairselection.compat;
 
 import me.kuionc.crosshairselection.config.GtOverlayConfig;
 import me.kuionc.crosshairselection.render.GtOverlayRenderer;
-import me.kuionc.crosshairselection.render.TargetLock;
 import net.minecraft.block.Block;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraftforge.client.event.DrawBlockHighlightEvent;
@@ -24,8 +23,9 @@ public final class GtOverlayCompat {
                 || event.target.typeOfHit != net.minecraft.util.MovingObjectPosition.MovingObjectType.BLOCK) {
             return false;
         }
-        net.minecraft.util.MovingObjectPosition target =
-                TargetLock.stable(event.player.worldObj, event.target);
+        // 九格只信 GT 自己的判定：GT 已经在 drawGrid 前筛过“可扳手方块 + 命中面”。
+        // 这里不能再套 TargetLock，否则会把上一帧锁定的管道/面拿来画。
+        net.minecraft.util.MovingObjectPosition target = event.target;
         if (target == null) {
             return false;
         }
