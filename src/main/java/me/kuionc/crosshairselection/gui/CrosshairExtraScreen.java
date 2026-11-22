@@ -126,7 +126,8 @@ public class CrosshairExtraScreen extends SettingsScreen {
                 new Condition() {
                     @Override
                     public boolean test() {
-                        return CrosshairConfig.bowChargeIndicator
+                        return CrosshairConfig.enabled
+                                && CrosshairConfig.bowChargeIndicator
                                 != me.kuionc.crosshairselection.config.BowChargeIndicator.NONE;
                     }
                 });

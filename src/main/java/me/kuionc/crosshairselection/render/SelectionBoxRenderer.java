@@ -1,6 +1,7 @@
 package me.kuionc.crosshairselection.render;
 
 import me.kuionc.crosshairselection.config.SelectionBoxConfig;
+import me.kuionc.crosshairselection.config.TransitionMode;
 import me.kuionc.crosshairselection.util.ColorUtil;
 import net.minecraft.block.Block;
 import net.minecraft.client.Minecraft;
@@ -31,6 +32,14 @@ public final class SelectionBoxRenderer {
     private static double displayOffsetX;
     private static double displayOffsetY;
     private static double displayOffsetZ;
+    /** 上一帧的形状列表与签名，用于判断“形变”还是“同形状滑动”。 */
+    private static List<OutlineShape> lastShapes;
+    private static long lastShapeHash;
+    /** 形变时要在原位淡出的旧形状。 */
+    private static List<OutlineShape> fadeOutShapes;
+    private static int fadeOutX;
+    private static int fadeOutY;
+    private static int fadeOutZ;
 
     private SelectionBoxRenderer() {
     }
@@ -55,50 +64,75 @@ public final class SelectionBoxRenderer {
             resetSmooth();
             lastWorld = world;
         }
-        double offsetX = 0.0D;
-        double offsetY = 0.0D;
-        double offsetZ = 0.0D;
-        if (!hasSelection) {
-            hasSelection = true;
-            lastX = x;
-            lastY = y;
-            lastZ = z;
-            transitionStart = 0L;
-        } else if (x != lastX || y != lastY || z != lastZ) {
-            // 从上一帧“实际显示的位置”继续动画，而不是从上一个目标方块起跳。
-            // 这样中途切换时选框是顺着当前位置滑过去，不会先跳一下。
-            fromX = lastX + displayOffsetX;
-            fromY = lastY + displayOffsetY;
-            fromZ = lastZ + displayOffsetZ;
-            lastX = x;
-            lastY = y;
-            lastZ = z;
-            transitionStart = now;
-            SelectionDebugLog.log("ANIM", "from=(" + fromX + "," + fromY + "," + fromZ
-                    + ") to=(" + x + "," + y + "," + z + ")");
-        }
-        if (SelectionBoxConfig.smoothTransition && transitionStart > 0L) {
-            float duration = Math.max(0.05F, SelectionBoxConfig.transitionDuration) * 1000.0F;
-            float t = (now - transitionStart) / duration;
-            if (t >= 1.0F) {
-                transitionStart = 0L;
-            } else {
-                // smoothstep：两端都缓，比“快出”更柔和。
-                double eased = t * t * (3.0D - 2.0D * t);
-                offsetX = (fromX - x) * (1.0D - eased);
-                offsetY = (fromY - y) * (1.0D - eased);
-                offsetZ = (fromZ - z) * (1.0D - eased);
-            }
-        }
-        displayOffsetX = offsetX;
-        displayOffsetY = offsetY;
-        displayOffsetZ = offsetZ;
+        // 形状要先算出来：切换时用形状签名决定“同形状滑动”还是“形变淡出”。
         Block block = world.getBlock(x, y, z);
         AxisAlignedBB primary = getSelectedBox(world, block, x, y, z);
         if (primary == null) {
             return false;
         }
         List<OutlineShape> shapes = ShapeCollector.collect(world, block, x, y, z, primary, hitResult);
+        long shapeHash = hashShapes(shapes, x, y, z);
+
+        double offsetX = 0.0D;
+        double offsetY = 0.0D;
+        double offsetZ = 0.0D;
+        double crossfadeEased = -1.0D;
+        if (!hasSelection) {
+            hasSelection = true;
+            lastX = x;
+            lastY = y;
+            lastZ = z;
+            transitionStart = 0L;
+            fadeOutShapes = null;
+        } else if (x != lastX || y != lastY || z != lastZ) {
+            if (!SelectionBoxConfig.smoothTransition) {
+                transitionStart = 0L;
+                fadeOutShapes = null;
+            } else if (SelectionBoxConfig.transitionMode == TransitionMode.SLIDE
+                    || shapeHash == lastShapeHash) {
+                // SLIDE 模式，或两个方块形状一样（整格方块、同型号直管）：滑动自然。
+                fromX = lastX + displayOffsetX;
+                fromY = lastY + displayOffsetY;
+                fromZ = lastZ + displayOffsetZ;
+                transitionStart = now;
+                fadeOutShapes = null;
+                SelectionDebugLog.log("ANIM", "slide from=(" + fromX + "," + fromY + "," + fromZ
+                        + ") to=(" + x + "," + y + "," + z + ")");
+            } else {
+                // 形状不同：旧形状在原位淡出，新形状淡入，避免两个形状叠在一起“变长”。
+                fadeOutShapes = lastShapes;
+                fadeOutX = lastX;
+                fadeOutY = lastY;
+                fadeOutZ = lastZ;
+                transitionStart = now;
+                SelectionDebugLog.log("ANIM", "crossfade from=(" + fadeOutX + "," + fadeOutY + ","
+                        + fadeOutZ + ") to=(" + x + "," + y + "," + z + ")");
+            }
+            lastX = x;
+            lastY = y;
+            lastZ = z;
+        }
+        if (SelectionBoxConfig.smoothTransition && transitionStart > 0L) {
+            float duration = Math.max(0.05F, SelectionBoxConfig.transitionDuration) * 1000.0F;
+            float t = (now - transitionStart) / duration;
+            if (t >= 1.0F) {
+                transitionStart = 0L;
+                fadeOutShapes = null;
+            } else {
+                // smoothstep：两端都缓，比“快出”更柔和。
+                double eased = t * t * (3.0D - 2.0D * t);
+                if (fadeOutShapes != null) {
+                    crossfadeEased = eased;
+                } else {
+                    offsetX = (fromX - x) * (1.0D - eased);
+                    offsetY = (fromY - y) * (1.0D - eased);
+                    offsetZ = (fromZ - z) * (1.0D - eased);
+                }
+            }
+        }
+        displayOffsetX = offsetX;
+        displayOffsetY = offsetY;
+        displayOffsetZ = offsetZ;
 
         double cameraX = player.prevPosX + (player.posX - player.prevPosX) * partialTicks;
         double cameraY = player.prevPosY + (player.posY - player.prevPosY) * partialTicks;
@@ -140,20 +174,20 @@ public final class SelectionBoxRenderer {
 
         // The sweep progress is frame-wide, so it is resolved once before the ribbon batch opens.
         RibbonBuffer.setProgress(sweepProgress());
-        // 填充先画完再画描边：否则多形状时后一个形状的填充会盖住前一个的边框，
-        // 在关闭深度测试（透视模式）或光影下尤其明显。
-        double[] bounds = boundsOf(shapes);
-        drawFills(shapes, innerColour, drawCameraX, drawCameraY, drawCameraZ, bounds);
-
-        boolean ribbons = RibbonBuffer.begin(colour, SelectionBoxConfig.flow,
-                drawCameraX, drawCameraY, drawCameraZ, bounds);
-        for (OutlineShape shape : shapes) {
-            drawOutline(shape, drawCameraX, drawCameraY, drawCameraZ, colour, thickness,
-                    flow, flowTime, flowSpeed);
+        if (crossfadeEased >= 0.0D && fadeOutShapes != null) {
+            // 形变：旧形状淡出、新形状淡入，两者都不做位置滑动。
+            drawPass(fadeOutShapes, scaleAlpha(colour, 1.0D - crossfadeEased),
+                    scaleAlpha(innerColour, 1.0D - crossfadeEased),
+                    cameraX, cameraY, cameraZ, flow, flowTime, flowSpeed, thickness);
+            drawPass(shapes, scaleAlpha(colour, crossfadeEased),
+                    scaleAlpha(innerColour, crossfadeEased),
+                    cameraX, cameraY, cameraZ, flow, flowTime, flowSpeed, thickness);
+        } else {
+            drawPass(shapes, colour, innerColour, drawCameraX, drawCameraY, drawCameraZ,
+                    flow, flowTime, flowSpeed, thickness);
         }
-        if (ribbons) {
-            RibbonBuffer.end();
-        }
+        lastShapes = shapes;
+        lastShapeHash = shapeHash;
         RenderBackend.endWorldOutlines();
 
         if (SelectionBoxConfig.showBreakProgress) {
@@ -179,6 +213,72 @@ public final class SelectionBoxRenderer {
     /** Manual sweep position; break progress is drawn separately by BreakProgressRenderer. */
     private static float sweepProgress() {
         return SelectionBoxConfig.flow.progress;
+    }
+
+    /** 画一整批形状（先填充后描边），带 alpha 缩放，供淡入淡出使用。 */
+    private static void drawPass(List<OutlineShape> shapes, int colour, int innerColour,
+                                 double cameraX, double cameraY, double cameraZ,
+                                 boolean flow, long flowTime, float flowSpeed, float thickness) {
+        if (shapes == null || shapes.isEmpty()) {
+            return;
+        }
+        double[] bounds = boundsOf(shapes);
+        drawFills(shapes, innerColour, cameraX, cameraY, cameraZ, bounds);
+        boolean ribbons = RibbonBuffer.begin(colour, SelectionBoxConfig.flow,
+                cameraX, cameraY, cameraZ, bounds);
+        for (OutlineShape shape : shapes) {
+            drawOutline(shape, cameraX, cameraY, cameraZ, colour, thickness,
+                    flow, flowTime, flowSpeed);
+        }
+        if (ribbons) {
+            RibbonBuffer.end();
+        }
+    }
+
+    private static int scaleAlpha(int colour, double factor) {
+        int alpha = Math.round(ColorUtil.alpha(colour) * (float) Math.max(0.0D, Math.min(1.0D, factor)));
+        return ColorUtil.withAlpha(colour, alpha);
+    }
+
+    /**
+     * 形状签名：盒子坐标按 1e-3 取整，**相对方块原点**。
+     *
+     * <p>必须用局部坐标：以前直接用世界坐标，两个同型号方块在不同位置也算“不同形状”，
+     * 滑动就永远不生效。
+     */
+    private static long hashShapes(List<OutlineShape> shapes, int originX, int originY, int originZ) {
+        long hash = 17L;
+        for (OutlineShape shape : shapes) {
+            hash = hash * 31L + shape.getKind().ordinal();
+            if (shape.getKind() == OutlineShape.Kind.BOX) {
+                hash = hashBox(hash, shape.getBox(), originX, originY, originZ);
+            } else if (shape.getKind() == OutlineShape.Kind.UNION) {
+                hash = hash * 31L + shape.getBoxes().size();
+                for (AxisAlignedBB box : shape.getBoxes()) {
+                    hash = hashBox(hash, box, originX, originY, originZ);
+                }
+            } else {
+                hash = hash * 31L + shape.getAxis();
+                hash = hash * 31L + Math.round((shape.getAxisMin() - originY) * 1000.0D);
+                hash = hash * 31L + Math.round((shape.getAxisMax() - originY) * 1000.0D);
+                hash = hash * 31L + Math.round(shape.getRadius() * 1000.0D);
+            }
+        }
+        return hash;
+    }
+
+    private static long hashBox(long hash, AxisAlignedBB box, int originX, int originY, int originZ) {
+        if (box == null) {
+            return hash * 31L;
+        }
+        long h = hash;
+        h = h * 31L + Math.round((box.minX - originX) * 1000.0D);
+        h = h * 31L + Math.round((box.minY - originY) * 1000.0D);
+        h = h * 31L + Math.round((box.minZ - originZ) * 1000.0D);
+        h = h * 31L + Math.round((box.maxX - originX) * 1000.0D);
+        h = h * 31L + Math.round((box.maxY - originY) * 1000.0D);
+        h = h * 31L + Math.round((box.maxZ - originZ) * 1000.0D);
+        return h;
     }
 
     /** 只画填充的那一趟；几何与描边共用同一批形状。 */
@@ -338,6 +438,9 @@ public final class SelectionBoxRenderer {
         displayOffsetX = 0.0D;
         displayOffsetY = 0.0D;
         displayOffsetZ = 0.0D;
+        lastShapes = null;
+        lastShapeHash = 0L;
+        fadeOutShapes = null;
         transitionStart = 0L;
     }
 

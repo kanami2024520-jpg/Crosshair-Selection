@@ -1,5 +1,6 @@
 package me.kuionc.crosshairselection.render;
 
+import net.minecraft.util.AxisAlignedBB;
 import net.minecraft.util.MovingObjectPosition;
 import net.minecraft.util.Vec3;
 import net.minecraft.world.World;
@@ -70,13 +71,13 @@ public final class TargetLock {
         long now = System.currentTimeMillis();
         lastCallMillis = now;
 
-        MovingObjectPosition result = resolve(hit, now);
+        MovingObjectPosition result = resolve(lockedWorld, hit, now);
         lastInput = hit;
         lastOutput = result;
         return result;
     }
 
-    private static MovingObjectPosition resolve(MovingObjectPosition hit, long now) {
+    private static MovingObjectPosition resolve(World world, MovingObjectPosition hit, long now) {
         boolean flapping = isFlapping(now);
         long required = flapping ? FLAP_CONFIRM_MILLIS : NORMAL_CONFIRM_MILLIS;
         String reason;
@@ -108,7 +109,7 @@ public final class TargetLock {
                 candidate = null;
                 candidateSince = 0L;
             }
-        } else if (ambiguityAtSharedFace(current, hit)) {
+        } else if (ambiguityAtSharedFace(world, current, hit)) {
             // 射线正好穿过相邻方块共享的面：平局，保持当前方块。
             candidate = null;
             candidateSince = 0L;
@@ -193,8 +194,16 @@ public final class TargetLock {
     /**
      * 两个方块面相邻，且命中点落在它们共享的那个面上 → 平局。
      */
-    private static boolean ambiguityAtSharedFace(MovingObjectPosition current, MovingObjectPosition hit) {
+    private static boolean ambiguityAtSharedFace(World world, MovingObjectPosition current,
+                                                 MovingObjectPosition hit) {
         if (current == null || hit == null || hit.hitVec == null) {
+            return false;
+        }
+        // 只有当前方块在这一点上真的有碰撞体时才算平局。
+        // 否则「从上方管道移到下方实心方块的顶面」会被误判成共享面平局，
+        // 表现为要多挪一两个像素才切过去。
+        AxisAlignedBB currentBox = currentBox(world, current);
+        if (currentBox == null || !currentBox.isVecInside(hit.hitVec)) {
             return false;
         }
         int dx = hit.blockX - current.blockX;
@@ -220,6 +229,25 @@ public final class TargetLock {
             return Math.abs(point.zCoord - (current.blockZ + 1.0D)) <= PLANE_EPSILON;
         }
         return Math.abs(point.zCoord - current.blockZ) <= PLANE_EPSILON;
+    }
+
+    /** 当前方块在该位置的实际碰撞盒；拿不到时返回 null。 */
+    private static AxisAlignedBB currentBox(World world, MovingObjectPosition current) {
+        if (world == null || current == null) {
+            return null;
+        }
+        net.minecraft.block.Block block = world.getBlock(
+                current.blockX, current.blockY, current.blockZ);
+        if (block == null) {
+            return null;
+        }
+        AxisAlignedBB box = block.getCollisionBoundingBoxFromPool(
+                world, current.blockX, current.blockY, current.blockZ);
+        if (box == null) {
+            return null;
+        }
+        // 命中点正好在面上，需要一点容差。
+        return box.expand(0.01D, 0.01D, 0.01D);
     }
 
     private static boolean sameBlock(MovingObjectPosition hit, MovingObjectPosition reference) {
