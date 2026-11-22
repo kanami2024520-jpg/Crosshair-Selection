@@ -34,7 +34,6 @@ public final class SelectionBoxRenderer {
     private static double displayOffsetZ;
     /** 上一帧的形状列表与签名，用于判断“形变”还是“同形状滑动”。 */
     private static List<OutlineShape> lastShapes;
-    private static long lastShapeHash;
     /** 形变时要在原位淡出的旧形状。 */
     private static List<OutlineShape> fadeOutShapes;
     private static int fadeOutX;
@@ -71,7 +70,6 @@ public final class SelectionBoxRenderer {
             return false;
         }
         List<OutlineShape> shapes = ShapeCollector.collect(world, block, x, y, z, primary, hitResult);
-        long shapeHash = hashShapes(shapes, x, y, z);
 
         double offsetX = 0.0D;
         double offsetY = 0.0D;
@@ -88,9 +86,8 @@ public final class SelectionBoxRenderer {
             if (!SelectionBoxConfig.smoothTransition) {
                 transitionStart = 0L;
                 fadeOutShapes = null;
-            } else if (SelectionBoxConfig.transitionMode == TransitionMode.SLIDE
-                    || shapeHash == lastShapeHash) {
-                // SLIDE 模式，或两个方块形状一样（整格方块、同型号直管）：滑动自然。
+            } else if (SelectionBoxConfig.transitionMode == TransitionMode.SLIDE) {
+                // SLIDE 模式：永远滑动。
                 fromX = lastX + displayOffsetX;
                 fromY = lastY + displayOffsetY;
                 fromZ = lastZ + displayOffsetZ;
@@ -99,7 +96,7 @@ public final class SelectionBoxRenderer {
                 SelectionDebugLog.log("ANIM", "slide from=(" + fromX + "," + fromY + "," + fromZ
                         + ") to=(" + x + "," + y + "," + z + ")");
             } else {
-                // 形状不同：旧形状在原位淡出，新形状淡入，避免两个形状叠在一起“变长”。
+                // CROSSFADE 模式：永远淡出，不再判断形状是否相同。
                 fadeOutShapes = lastShapes;
                 fadeOutX = lastX;
                 fadeOutY = lastY;
@@ -187,7 +184,6 @@ public final class SelectionBoxRenderer {
                     flow, flowTime, flowSpeed, thickness);
         }
         lastShapes = shapes;
-        lastShapeHash = shapeHash;
         RenderBackend.endWorldOutlines();
 
         if (SelectionBoxConfig.showBreakProgress) {
@@ -238,47 +234,6 @@ public final class SelectionBoxRenderer {
     private static int scaleAlpha(int colour, double factor) {
         int alpha = Math.round(ColorUtil.alpha(colour) * (float) Math.max(0.0D, Math.min(1.0D, factor)));
         return ColorUtil.withAlpha(colour, alpha);
-    }
-
-    /**
-     * 形状签名：盒子坐标按 1e-3 取整，**相对方块原点**。
-     *
-     * <p>必须用局部坐标：以前直接用世界坐标，两个同型号方块在不同位置也算“不同形状”，
-     * 滑动就永远不生效。
-     */
-    private static long hashShapes(List<OutlineShape> shapes, int originX, int originY, int originZ) {
-        long hash = 17L;
-        for (OutlineShape shape : shapes) {
-            hash = hash * 31L + shape.getKind().ordinal();
-            if (shape.getKind() == OutlineShape.Kind.BOX) {
-                hash = hashBox(hash, shape.getBox(), originX, originY, originZ);
-            } else if (shape.getKind() == OutlineShape.Kind.UNION) {
-                hash = hash * 31L + shape.getBoxes().size();
-                for (AxisAlignedBB box : shape.getBoxes()) {
-                    hash = hashBox(hash, box, originX, originY, originZ);
-                }
-            } else {
-                hash = hash * 31L + shape.getAxis();
-                hash = hash * 31L + Math.round((shape.getAxisMin() - originY) * 1000.0D);
-                hash = hash * 31L + Math.round((shape.getAxisMax() - originY) * 1000.0D);
-                hash = hash * 31L + Math.round(shape.getRadius() * 1000.0D);
-            }
-        }
-        return hash;
-    }
-
-    private static long hashBox(long hash, AxisAlignedBB box, int originX, int originY, int originZ) {
-        if (box == null) {
-            return hash * 31L;
-        }
-        long h = hash;
-        h = h * 31L + Math.round((box.minX - originX) * 1000.0D);
-        h = h * 31L + Math.round((box.minY - originY) * 1000.0D);
-        h = h * 31L + Math.round((box.minZ - originZ) * 1000.0D);
-        h = h * 31L + Math.round((box.maxX - originX) * 1000.0D);
-        h = h * 31L + Math.round((box.maxY - originY) * 1000.0D);
-        h = h * 31L + Math.round((box.maxZ - originZ) * 1000.0D);
-        return h;
     }
 
     /** 只画填充的那一趟；几何与描边共用同一批形状。 */
@@ -439,7 +394,6 @@ public final class SelectionBoxRenderer {
         displayOffsetY = 0.0D;
         displayOffsetZ = 0.0D;
         lastShapes = null;
-        lastShapeHash = 0L;
         fadeOutShapes = null;
         transitionStart = 0L;
     }
