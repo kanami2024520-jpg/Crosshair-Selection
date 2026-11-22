@@ -86,6 +86,9 @@ public class SelectionBoxConfig {
             + "Turn off for instant, vanilla-style switching.")
     public static boolean targetStability = true;
 
+    @Config.Comment("How the selection box transitions when the target changes.")
+    public static TransitionMode transitionMode = TransitionMode.CROSSFADE;
+
     @Config.Comment("Animate the inner fill.")
     public static boolean blink = true;
 
@@ -114,5 +117,6 @@ public class SelectionBoxConfig {
         debugPartSelection = false;
         debugTargetSelection = false;
         targetStability = true;
+        transitionMode = TransitionMode.CROSSFADE;
     }
 }

@@ -1,6 +1,7 @@
 package me.kuionc.crosshairselection.render;
 
 import me.kuionc.crosshairselection.config.SelectionBoxConfig;
+import me.kuionc.crosshairselection.config.TransitionMode;
 import me.kuionc.crosshairselection.util.ColorUtil;
 import net.minecraft.block.Block;
 import net.minecraft.client.Minecraft;
@@ -70,7 +71,7 @@ public final class SelectionBoxRenderer {
             return false;
         }
         List<OutlineShape> shapes = ShapeCollector.collect(world, block, x, y, z, primary, hitResult);
-        long shapeHash = hashShapes(shapes);
+        long shapeHash = hashShapes(shapes, x, y, z);
 
         double offsetX = 0.0D;
         double offsetY = 0.0D;
@@ -87,8 +88,9 @@ public final class SelectionBoxRenderer {
             if (!SelectionBoxConfig.smoothTransition) {
                 transitionStart = 0L;
                 fadeOutShapes = null;
-            } else if (shapeHash == lastShapeHash) {
-                // 两个方块形状一样（整格方块、同型号直管）：滑动自然。
+            } else if (SelectionBoxConfig.transitionMode == TransitionMode.SLIDE
+                    || shapeHash == lastShapeHash) {
+                // SLIDE 模式，或两个方块形状一样（整格方块、同型号直管）：滑动自然。
                 fromX = lastX + displayOffsetX;
                 fromY = lastY + displayOffsetY;
                 fromZ = lastZ + displayOffsetZ;
@@ -238,39 +240,44 @@ public final class SelectionBoxRenderer {
         return ColorUtil.withAlpha(colour, alpha);
     }
 
-    /** 形状签名：盒子坐标按 1e-3 取整，数量/类型不同会得到不同值。 */
-    private static long hashShapes(List<OutlineShape> shapes) {
+    /**
+     * 形状签名：盒子坐标按 1e-3 取整，**相对方块原点**。
+     *
+     * <p>必须用局部坐标：以前直接用世界坐标，两个同型号方块在不同位置也算“不同形状”，
+     * 滑动就永远不生效。
+     */
+    private static long hashShapes(List<OutlineShape> shapes, int originX, int originY, int originZ) {
         long hash = 17L;
         for (OutlineShape shape : shapes) {
             hash = hash * 31L + shape.getKind().ordinal();
             if (shape.getKind() == OutlineShape.Kind.BOX) {
-                hash = hashBox(hash, shape.getBox());
+                hash = hashBox(hash, shape.getBox(), originX, originY, originZ);
             } else if (shape.getKind() == OutlineShape.Kind.UNION) {
                 hash = hash * 31L + shape.getBoxes().size();
                 for (AxisAlignedBB box : shape.getBoxes()) {
-                    hash = hashBox(hash, box);
+                    hash = hashBox(hash, box, originX, originY, originZ);
                 }
             } else {
                 hash = hash * 31L + shape.getAxis();
-                hash = hash * 31L + Math.round(shape.getAxisMin() * 1000.0D);
-                hash = hash * 31L + Math.round(shape.getAxisMax() * 1000.0D);
+                hash = hash * 31L + Math.round((shape.getAxisMin() - originY) * 1000.0D);
+                hash = hash * 31L + Math.round((shape.getAxisMax() - originY) * 1000.0D);
                 hash = hash * 31L + Math.round(shape.getRadius() * 1000.0D);
             }
         }
         return hash;
     }
 
-    private static long hashBox(long hash, AxisAlignedBB box) {
+    private static long hashBox(long hash, AxisAlignedBB box, int originX, int originY, int originZ) {
         if (box == null) {
             return hash * 31L;
         }
         long h = hash;
-        h = h * 31L + Math.round(box.minX * 1000.0D);
-        h = h * 31L + Math.round(box.minY * 1000.0D);
-        h = h * 31L + Math.round(box.minZ * 1000.0D);
-        h = h * 31L + Math.round(box.maxX * 1000.0D);
-        h = h * 31L + Math.round(box.maxY * 1000.0D);
-        h = h * 31L + Math.round(box.maxZ * 1000.0D);
+        h = h * 31L + Math.round((box.minX - originX) * 1000.0D);
+        h = h * 31L + Math.round((box.minY - originY) * 1000.0D);
+        h = h * 31L + Math.round((box.minZ - originZ) * 1000.0D);
+        h = h * 31L + Math.round((box.maxX - originX) * 1000.0D);
+        h = h * 31L + Math.round((box.maxY - originY) * 1000.0D);
+        h = h * 31L + Math.round((box.maxZ - originZ) * 1000.0D);
         return h;
     }
 

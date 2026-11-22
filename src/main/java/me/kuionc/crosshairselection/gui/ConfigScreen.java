@@ -39,6 +39,7 @@ public class ConfigScreen extends SettingsScreen {
     private static final int SELECTION_ANTI_ALIAS = 40;
     private static final int SELECTION_FILL_SETTINGS = 53;
     private static final int SELECTION_TARGET_STABILITY = 60;
+    private static final int SELECTION_TRANSITION_MODE = 61;
     private static final int CROSSHAIR_VISIBILITY_SETTINGS = 54;
     private static final int CROSSHAIR_EXTRA_SETTINGS = 55;
     private static final int SELECTION_BREAK_PROGRESS = 42;
@@ -181,6 +182,16 @@ public class ConfigScreen extends SettingsScreen {
         add(right.place(new OptionSlider(SELECTION_TRANSITION, 0, 0, colW, 18, 0.05F, 0.5F,
                 SelectionBoxConfig.transitionDuration, false, 2, "crosshairselection.transition_duration", this),
                 colW), and(selectionOn, new Condition() {
+                    @Override
+                    public boolean test() {
+                        return SelectionBoxConfig.smoothTransition;
+                    }
+                }));
+        add(right.place(new GuiButton(SELECTION_TRANSITION_MODE, 0, 0, colW, 18,
+                StatCollector.translateToLocalFormatted("crosshairselection.transition_mode",
+                        StatCollector.translateToLocal(
+                                SelectionBoxConfig.transitionMode.getTranslationKey()))), colW),
+                and(selectionOn, new Condition() {
                     @Override
                     public boolean test() {
                         return SelectionBoxConfig.smoothTransition;
@@ -544,6 +555,13 @@ public class ConfigScreen extends SettingsScreen {
                 CrosshairConfig.ticKeepCustomCrosshair = !CrosshairConfig.ticKeepCustomCrosshair;
                 button.displayString = StatCollector.translateToLocalFormatted(
                         "crosshairselection.tic_short", onOff(CrosshairConfig.ticKeepCustomCrosshair));
+                break;
+            case SELECTION_TRANSITION_MODE:
+                SelectionBoxConfig.transitionMode = SelectionBoxConfig.transitionMode.next();
+                button.displayString = StatCollector.translateToLocalFormatted(
+                        "crosshairselection.transition_mode",
+                        StatCollector.translateToLocal(
+                                SelectionBoxConfig.transitionMode.getTranslationKey()));
                 break;
             case SELECTION_TARGET_STABILITY:
                 SelectionBoxConfig.targetStability = !SelectionBoxConfig.targetStability;

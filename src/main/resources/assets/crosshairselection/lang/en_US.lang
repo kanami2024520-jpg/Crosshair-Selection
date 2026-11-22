@@ -51,6 +51,9 @@ crosshairselection.rainbow.flow=FLOW
 crosshairselection.smooth_transition=Smooth Selection: %s
 crosshairselection.target_stability=Target stability: %s
 crosshairselection.transition_duration=Transition: %s s
+crosshairselection.transition_mode=Transition: %s
+crosshairselection.transition_mode.crossfade=Crossfade
+crosshairselection.transition_mode.slide=Slide
 
 crosshairselection.tic_short=TiC Compat: %s
 crosshairselection.gt_overlay_settings=GT Overlay
