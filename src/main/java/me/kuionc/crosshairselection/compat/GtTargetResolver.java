@@ -1,9 +1,6 @@
 package me.kuionc.crosshairselection.compat;
 
 import me.kuionc.crosshairselection.config.GtOverlayConfig;
-import me.kuionc.crosshairselection.render.OutlineShape;
-import me.kuionc.crosshairselection.render.SelectionBoxRenderer;
-import me.kuionc.crosshairselection.render.ShapeCollector;
 import net.minecraft.block.Block;
 import net.minecraft.client.Minecraft;
 import net.minecraft.entity.player.EntityPlayer;
@@ -12,7 +9,6 @@ import net.minecraft.util.MovingObjectPosition;
 import net.minecraft.util.Vec3;
 import net.minecraft.world.World;
 
-import java.util.List;
 import me.kuionc.crosshairselection.util.McRef;
 
 /**
@@ -81,25 +77,14 @@ public final class GtTargetResolver {
             }
         }
 
-        AxisAlignedBB primary = SelectionBoxRenderer.getSelectedBox(world, block, x, y, z);
-        if (primary != null) {
-            List<OutlineShape> shapes = ShapeCollector.collect(world, block, x, y, z, primary, vanilla);
-            for (OutlineShape shape : shapes) {
-                if (shape.getKind() == OutlineShape.Kind.BOX) {
-                    Candidate candidate = intersect(eye, end, shape.getBox(), x, y, z, -1, vanilla.sideHit);
-                    if (candidate != null && candidate.distance < bestDistance) {
-                        bestDistance = candidate.distance;
-                        best = candidate.toMop();
-                    }
-                } else if (shape.getKind() == OutlineShape.Kind.UNION) {
-                    for (AxisAlignedBB box : shape.getBoxes()) {
-                        Candidate candidate = intersect(eye, end, box, x, y, z, -1, vanilla.sideHit);
-                        if (candidate != null && candidate.distance < bestDistance) {
-                            bestDistance = candidate.distance;
-                            best = candidate.toMop();
-                        }
-                    }
-                }
+        // 管道形状直接取 GtPipeShapeProvider 的确定性结果（只依赖厚度和连接），
+        // 不再调用 ShapeCollector：那一层会读 target.hitVec，和随后真正画选框时
+        // 的输入不同，可能算出两套形状，表现为“忽长忽短”。
+        for (AxisAlignedBB box : GtPipeShapeProvider.getBoxes(world, x, y, z)) {
+            Candidate candidate = intersect(eye, end, box, x, y, z, -1, vanilla.sideHit);
+            if (candidate != null && candidate.distance < bestDistance) {
+                bestDistance = candidate.distance;
+                best = candidate.toMop();
             }
         }
 
